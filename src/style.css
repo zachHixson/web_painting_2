@@ -1,0 +1,50 @@
+html, body {
+    padding: 0px;
+    margin: 0px;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+body {
+    display: flex;
+    flex-direction: row;
+}
+
+.toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 80px;
+    padding-top: 20px;
+    box-shadow: inset rgba(0, 0, 0, 0.5) -5px 0px 5px -5px;
+    border-right: 2px solid white;
+}
+
+.tool {
+    display: block;
+    width: 50px;
+    height: 50px;
+    background: #BBBBBB;
+    border-radius: 50%;
+    border: 3px solid #DDDDDD;
+}
+
+.tool:hover:not(.tool-selected) {
+    box-shadow: inset rgba(0, 0, 0, 0.5) -2px 1px 2px;
+}
+
+.tool-selected {
+    box-shadow: inset rgba(0, 0, 0, 0.5) -5px 3px 2px;
+}
+
+.tool-selected:hover{
+    box-shadow: inset rgba(0, 0, 0, 0.5) -6px 4px 2px;
+}
+
+.canvas-wrapper {
+    width: 100%;
+    height: 100%;
+}
