@@ -1,49 +1,37 @@
 import './style.css';
 import { Vector } from './lib/Vector';
-import Camera from './objects/Camera';
 import Renderer from './Renderer';
-import Renderable from './objects/Renderable';
 import { compileShaders } from './ShaderPrecompiler';
+import Mouse from './Mouse';
+import { MOUSE_TOOLS } from './Mouse';
 
 import placeHolderIcon from '../public/vite.svg';
 import btnTemplate from './button.html?raw';
+import Environment from './Environment';
 
-enum MOUSE_TOOLS {
-    MOVE = 1,
-    NONE,
-}
-
-const buttons: {
+const tools: {
+    type: MOUSE_TOOLS,
     icon: string,
-    onClick: ()=>void,
+    newTool?: ()=>void,
 }[] = [
     {
+        type: MOUSE_TOOLS.MOVE,
         icon: placeHolderIcon,
-        onClick: ()=>{},
+        newTool: ()=>{},
     },
     {
+        type: MOUSE_TOOLS.DIRT,
         icon: placeHolderIcon,
-        onClick: ()=>{},
     },
     {
+        type: MOUSE_TOOLS.RAIN,
         icon: placeHolderIcon,
-        onClick: ()=>{},
     },
     {
+        type: MOUSE_TOOLS.WIND,
         icon: placeHolderIcon,
-        onClick: ()=>{},
     },
-]
-
-const mouse = {
-    curTool: MOUSE_TOOLS.NONE,
-    lastPos: new Vector(0, 0),
-    pos: new Vector(0, 0),
-    down: false,
-}
-const camera = new Camera();
-const objects: Renderable[] = [];
-let renderer!: Renderer;
+];
 
 window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -53,55 +41,45 @@ window.onload = ()=>{
 }
 
 function initProgram(ctx: WebGL2RenderingContext){
-    renderer = new Renderer();
-    createButtons();
-    bindEventListeners(ctx.canvas as HTMLCanvasElement);
+    const env = new Environment(ctx);
+    const renderer = new Renderer();
     renderer.resize();
-    camera.setDimensions(new Vector(ctx.canvas.width, ctx.canvas.height));
+    env.camera.setDimensions(new Vector(ctx.canvas.width, ctx.canvas.height));
+    env.mouse.setTool(tools[1]);
+    createButtons(env.mouse);
 
-    update(renderer);
+    update(env, renderer);
 }
 
-function createButtons(){
+function createButtons(mouse: Mouse): void {
     const toolbar = document.getElementById('toolbar') as HTMLDivElement;
     const el = document.createElement('div');
 
-    for (let i = 0; i < buttons.length; i++){
-        const parsedTemplate = btnTemplate.replace('[src]', buttons[i].icon);
+    for (let i = 0; i < tools.length; i++){
+        const parsedTemplate = btnTemplate.replace('[src]', tools[i].icon);
         el.innerHTML = parsedTemplate;
-        el.firstChild!.addEventListener('click', ()=>{
-            console.log(i, 'clicked');
+        const btn = el.firstChild as HTMLButtonElement;
+        btn.addEventListener('click', ()=>{
+            //remove 'tool-selected,' class from all buttons
+            for (let i = 0; i < toolbar.childNodes.length; i++){
+                const btn = toolbar.childNodes[i] as HTMLButtonElement;
+                btn.classList.remove('tool-selected');
+            }
+
+            //Add class to current button and set tool
+            btn.classList.add('tool-selected');
+            mouse.setTool(tools[i]);
         });
-        toolbar.appendChild(el.firstChild!);
+
+        if (mouse.curTool == tools[i].type){
+            btn.classList.add('tool-selected');
+        }
+
+        toolbar.appendChild(btn);
     }
 }
 
-function bindEventListeners(canvas: HTMLCanvasElement): void {
-    canvas.addEventListener('mousemove', evt => {
-        const e = evt as MouseEvent;
-        mouse.lastPos.copy(mouse.pos);
-        mouse.pos.set(e.offsetX, e.offsetY);
-
-        if ((mouse.down && mouse.curTool == MOUSE_TOOLS.MOVE) || evt.buttons & 0b100){
-            const delta = mouse.pos.clone().subtract(mouse.lastPos).scale(2 / camera.getScale());
-            delta.x *= -1;
-            camera.slide(delta);
-        }
-    });
-    canvas.addEventListener('mousedown', e => {
-        mouse.down = !!(e.buttons & 0b001);
-    });
-    canvas.addEventListener('mouseup', e => {
-        mouse.down = !!(e.buttons & 0b001);
-    });
-    canvas.addEventListener('wheel', evt => {
-        const e = evt as WheelEvent;
-        camera.zoom(-e.deltaY / 200);
-        console.log(camera.getScale());
-    });
-}
-
-function update(renderer: Renderer): void {
-    renderer.render(objects, camera.getInvMatrix());
-    requestAnimationFrame(()=>update(renderer));
+function update(env: Environment, renderer: Renderer): void {
+    renderer.render(env.renderList, env.camera.getInvMatrix());
+    requestAnimationFrame(()=>update(env, renderer));
 }

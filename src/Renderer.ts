@@ -10,7 +10,7 @@ export default class Renderer {
     private static _worldProgram: WebGLProgram;
     private static _positionAttr: WGL.Attribute;
     private static _viewMat: WGL.Uniform;
-    private static _init = (()=>{
+    static _shaderInit = (()=>{
         registerPrecompileCallback(gl => {
             const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource)!;
             const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource)!;

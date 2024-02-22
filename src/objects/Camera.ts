@@ -17,6 +17,15 @@ export default class Camera {
         return this._scale;
     }
 
+    getDimensions(): ConstVector {
+        return this._dimensions;
+    }
+
+    setDimensions(dimensions: ConstVector): void {
+        this._dimensions.copy(dimensions);
+        this._matrixNeedsUpdate = true;
+    }
+
     getMatrix(): Mat3 {
         if (this._matrixNeedsUpdate){
             this.updateMatrix();
@@ -52,11 +61,6 @@ export default class Camera {
     zoom(amount: number): void {
         this._scale += amount;
         this._scale = Math.max(Math.min(this._scale, 2), 0.7);
-        this._matrixNeedsUpdate = true;
-    }
-
-    setDimensions(dimensions: ConstVector): void {
-        this._dimensions.copy(dimensions);
         this._matrixNeedsUpdate = true;
     }
 
