@@ -4,10 +4,35 @@ import Camera from './objects/Camera';
 import Renderer from './Renderer';
 import Renderable from './objects/Renderable';
 
+import placeHolderIcon from '../public/vite.svg';
+import btnTemplate from './button.html?raw';
+
 enum MOUSE_TOOLS {
     MOVE = 1,
     NONE,
 }
+
+const buttons: {
+    icon: string,
+    onClick: ()=>void,
+}[] = [
+    {
+        icon: placeHolderIcon,
+        onClick: ()=>{},
+    },
+    {
+        icon: placeHolderIcon,
+        onClick: ()=>{},
+    },
+    {
+        icon: placeHolderIcon,
+        onClick: ()=>{},
+    },
+    {
+        icon: placeHolderIcon,
+        onClick: ()=>{},
+    },
+]
 
 const mouse = {
     curTool: MOUSE_TOOLS.NONE,
@@ -23,6 +48,7 @@ window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     renderer = new Renderer(canvas);
 
+    createButtons();
     bindEventListeners(canvas);
     renderer.resize();
     camera.setDimensions(new Vector(canvas.width, canvas.height));
@@ -30,9 +56,18 @@ window.onload = ()=>{
     update(renderer);
 }
 
-function update(renderer: Renderer): void {
-    renderer.render(objects, camera.getInvMatrix());
-    requestAnimationFrame(()=>update(renderer));
+function createButtons(){
+    const toolbar = document.getElementById('toolbar') as HTMLDivElement;
+    const el = document.createElement('div');
+
+    for (let i = 0; i < buttons.length; i++){
+        const parsedTemplate = btnTemplate.replace('[src]', buttons[i].icon);
+        el.innerHTML = parsedTemplate;
+        el.firstChild!.addEventListener('click', ()=>{
+            console.log(i, 'clicked');
+        });
+        toolbar.appendChild(el.firstChild!);
+    }
 }
 
 function bindEventListeners(canvas: HTMLCanvasElement): void {
@@ -58,4 +93,9 @@ function bindEventListeners(canvas: HTMLCanvasElement): void {
         camera.zoom(-e.deltaY / 200);
         console.log(camera.getScale());
     });
+}
+
+function update(renderer: Renderer): void {
+    renderer.render(objects, camera.getInvMatrix());
+    requestAnimationFrame(()=>update(renderer));
 }
