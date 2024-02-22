@@ -20,4 +20,11 @@ void main(){
     vec3 col = mix(BG_COLOR, GRID_COLOR, grid * 0.5);
 
     outColor = vec4(col, 1.0);
+
+    //debug code. Remove before launching
+    float dbgDist = length(v_uv);
+
+    if (dbgDist < 10.0){
+        outColor = vec4(vec3(0.0), 1.0);
+    }
 }
