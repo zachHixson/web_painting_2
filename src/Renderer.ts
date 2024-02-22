@@ -3,42 +3,38 @@ import * as WGL from './lib/wgl';
 import Renderable from './objects/Renderable';
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
+import { registerPrecompileCallback } from './ShaderPrecompiler';
 
 export default class Renderer {
-    private _ctx: WebGL2RenderingContext;
-    private _worldProgram: WebGLProgram;
-    private _positionAttr: WGL.Attribute;
-    private _viewMat: WGL.Uniform;
+    private static _ctx: WebGL2RenderingContext;
+    private static _worldProgram: WebGLProgram;
+    private static _positionAttr: WGL.Attribute;
+    private static _viewMat: WGL.Uniform;
+    private static _init = (()=>{
+        registerPrecompileCallback(gl => {
+            const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource)!;
+            const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource)!;
+            Renderer._ctx = gl;
+            Renderer._worldProgram = WGL.createProgram(gl, worldVS, worldFS)!;
+            Renderer._positionAttr = new WGL.Attribute(gl, this._worldProgram, 'a_position');
+            Renderer._viewMat = new WGL.Uniform(gl, Renderer._worldProgram, 'u_viewMat', WGL.Uniform_Types.MAT3);
+            return true;
+        });
+    })();
+
     private _vao: WebGLVertexArrayObject;
-    private _shaderCache = new Map<string, WebGLShader>();
-    private _shaderCacheCallback: (shaderKey: string) => WebGLShader | null;
 
-    constructor(canvas: HTMLCanvasElement){
-        this._ctx = canvas.getContext('webgl2')!;
-
-        const gl = this._ctx;
-        const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource)!;
-        const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource)!;
-
-        this._worldProgram = WGL.createProgram(gl, worldVS, worldFS)!;
-        this._positionAttr = new WGL.Attribute(gl, this._worldProgram, 'a_position');
-        this._viewMat = new WGL.Uniform(gl, this._worldProgram, 'u_viewMat', WGL.Uniform_Types.MAT3);
+    constructor(){
+        const gl = Renderer._ctx;
         this._vao = gl.createVertexArray()!;
-
         gl.bindVertexArray(this._vao);
-
-        this._positionAttr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
-
-        this._shaderCacheCallback = (shaderKey: string) => {
-            return this._shaderCache.get(shaderKey) ?? null;
-        }
+        Renderer._positionAttr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
     }
 
-    get canvas(){return this._ctx.canvas}
-    get checkShaderCache(){return this._shaderCacheCallback}
+    get canvas(){return Renderer._ctx.canvas}
 
     resize(): void {
-        const canvas = this._ctx.canvas as HTMLCanvasElement;
+        const canvas = Renderer._ctx.canvas as HTMLCanvasElement;
         const parentBounds = canvas.parentElement!.getBoundingClientRect();
         const width = parentBounds.width;
         const height = parentBounds.height;
@@ -50,16 +46,16 @@ export default class Renderer {
     }
 
     render(objects: Renderable[], viewMat: Mat3): void {
-        const gl = this._ctx;
+        const gl = Renderer._ctx;
 
         //render world background
         gl.bindVertexArray(this._vao);
-        gl.useProgram(this._worldProgram);
-        this._viewMat.set(false, viewMat.data);
+        gl.useProgram(Renderer._worldProgram);
+        Renderer._viewMat.set(false, viewMat.data);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-        this._positionAttr.enable();
+        Renderer._positionAttr.enable();
         gl.drawArrays(gl.TRIANGLES, 0, 6);
-        this._positionAttr.disable();
+        Renderer._positionAttr.disable();
 
         //draw all objects
         for (let i = 0; i < objects.length; i++){

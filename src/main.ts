@@ -3,6 +3,7 @@ import { Vector } from './lib/Vector';
 import Camera from './objects/Camera';
 import Renderer from './Renderer';
 import Renderable from './objects/Renderable';
+import { compileShaders } from './ShaderPrecompiler';
 
 import placeHolderIcon from '../public/vite.svg';
 import btnTemplate from './button.html?raw';
@@ -46,12 +47,17 @@ let renderer!: Renderer;
 
 window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    renderer = new Renderer(canvas);
+    const ctx = canvas.getContext('webgl2')!;
 
+    compileShaders(ctx).then(()=>initProgram(ctx));
+}
+
+function initProgram(ctx: WebGL2RenderingContext){
+    renderer = new Renderer();
     createButtons();
-    bindEventListeners(canvas);
+    bindEventListeners(ctx.canvas as HTMLCanvasElement);
     renderer.resize();
-    camera.setDimensions(new Vector(canvas.width, canvas.height));
+    camera.setDimensions(new Vector(ctx.canvas.width, ctx.canvas.height));
 
     update(renderer);
 }
