@@ -81,5 +81,6 @@ function createButtons(mouse: Mouse): void {
 
 function update(env: Environment, renderer: Renderer): void {
     renderer.render(env.renderList, env.camera.getInvMatrix());
+    env.mouse.render();
     requestAnimationFrame(()=>update(env, renderer));
 }

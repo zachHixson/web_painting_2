@@ -25,7 +25,7 @@ export function createShader(gl: WebGL2RenderingContext, type: number, source: s
     return shader;
 }
 
-export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
+export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram {
     const program = gl.createProgram();
 
     if (!program){

@@ -1,5 +1,10 @@
 import { Vector } from "./lib/Vector";
 import Camera from "./objects/Camera";
+import * as WGL from './lib/wgl';
+import vertSource from './shaders/mouseVertex.glsl?raw';
+import fragSource from './shaders/mouseFragment.glsl?raw';
+import { registerPrecompileCallback } from "./ShaderPrecompiler";
+import * as Bezier from './lib/Bezier';
 
 export enum MOUSE_TOOLS {
     MOVE = 1,
@@ -10,6 +15,20 @@ export enum MOUSE_TOOLS {
 }
 
 export default class Mouse {
+    private static _ctx: WebGL2RenderingContext;
+    private static _program: WebGLProgram;
+
+    static _shaderInit = (()=>{
+        registerPrecompileCallback(gl => {
+            const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
+            const fs = WGL.createShader(gl, gl.FRAGMENT_SHADER, fragSource);
+            const program = WGL.createProgram(gl, vs, fs);
+            Mouse._ctx = gl;
+            Mouse._program = program;
+            return true;
+        });
+    })();
+
     private readonly _camera: Camera;
     private _brushPoints: Vector[] = [];
 
@@ -41,7 +60,7 @@ export default class Mouse {
                 
                 if (distCheck && lengthCheck) {
                     this._brushPoints.push(curScreenPos);
-                    console.log(curScreenPos.toObject());
+                    this._recalcGeo();
                 }
             }
         });
@@ -70,8 +89,31 @@ export default class Mouse {
         });
     }
 
+    private _recalcGeo(){
+        const spline = Bezier.splineFromPoints(this._brushPoints);
+        const bounds = new Array<ReturnType<typeof Bezier.boundsFromCurve>>(Math.round(spline.length / 4));
+
+        for (let i = 0; i < bounds.length; i++){
+            const splineIdx = i * 3;
+            const curve = [
+                spline[splineIdx + 0],
+                spline[splineIdx + 1],
+                spline[splineIdx + 2],
+                spline[splineIdx + 3]
+            ];
+            bounds[i] = Bezier.boundsFromCurve(curve);
+        }
+        
+        //Need to calculate width/height
+        //Need to set vertex attribute for <ul.x, ul.y, width, height>
+    }
+
     setTool(tool: {type: MOUSE_TOOLS, newTool?: ()=>void}): void {
         this.curTool = tool.type;
         this.createObjCallback = tool.newTool ?? null;
+    }
+
+    render(): void {
+        if (this._brushPoints.length == 0) return;
     }
 }
