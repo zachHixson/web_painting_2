@@ -73,7 +73,7 @@ export function pointFromCurve(curve: ConstVector[], t: number): Vector {
     const t2 = t * t;
     const t3 = t2 * t;
 
-    return p0.scale(-t3 + 3 * t2 + 3 * t + 1)
+    return p0.scale(-t3 + 3 * t2 - 3 * t + 1)
         .add(p1.scale(3 * t3 - 6 * t2 + 3 * t))
         .add(p2.scale(-3 * t3 + 3 * t2))
         .add(p3.scale(t3))
@@ -141,13 +141,13 @@ export function curveExtrema(curve: ConstVector[]): number[] {
 export function boundsFromCurve(curve: ConstVector[], padding: number = 0): {ul: Vector, br: Vector} {
     const extrema = curveExtrema(curve);
     const ul = new Vector(
-        Math.max(curve[0].x, curve[1].x, curve[2].x, curve[3].x),
-        Math.min(curve[0].y, curve[1].y, curve[2].y, curve[3].y),
+        Math.min(curve[0].x, curve[3].x),
+        Math.max(curve[0].y, curve[3].y)
     );
     const br = new Vector(
-        Math.min(curve[0].x, curve[1].x, curve[2].x, curve[3].x),
-        Math.max(curve[0].y, curve[1].y, curve[2].y, curve[3].y),
-    )
+        Math.max(curve[0].x, curve[3].x),
+        Math.min(curve[0].y, curve[3].y)
+    );
 
     for (let i = 0; i < extrema.length; i++){
         const e = extrema[i];
@@ -159,8 +159,8 @@ export function boundsFromCurve(curve: ConstVector[], padding: number = 0): {ul:
         const point = pointFromCurve(curve, e);
         ul.x = Math.min(ul.x, point.x);
         ul.y = Math.max(ul.y, point.y);
-        br.x = Math.max(ul.x, point.x);
-        br.y = Math.min(ul.y, point.y);
+        br.x = Math.max(br.x, point.x);
+        br.y = Math.min(br.y, point.y);
     }
 
     ul.x -= padding;
