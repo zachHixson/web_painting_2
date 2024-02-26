@@ -43,6 +43,14 @@ export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLSha
     return program;
 }
 
+export function nullError<T extends object>(obj: T | null, err: Error): T {
+    if (obj){
+        return obj;
+    }
+
+    throw err;
+}
+
 export function createPlaneGeo(){
     return [
         -1, 1,

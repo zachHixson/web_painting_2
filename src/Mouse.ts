@@ -1,4 +1,5 @@
-import { Vector } from "./lib/Vector";
+import { ConstVector, Vector } from "./lib/Vector";
+import { Mat3 } from "./lib/Mat3";
 import Camera from "./objects/Camera";
 import * as WGL from './lib/wgl';
 import vertSource from './shaders/mouseVertex.glsl?raw';
@@ -17,20 +18,41 @@ export enum MOUSE_TOOLS {
 export default class Mouse {
     private static _ctx: WebGL2RenderingContext;
     private static _program: WebGLProgram;
+    private static _vao: WebGLVertexArrayObject;
+    private static _planeAttrib: WGL.Attribute;
+    private static _xfrmAttrib: WGL.Attribute;
+    private static _matrixUniform: WGL.Uniform;
 
     static _shaderInit = (()=>{
         registerPrecompileCallback(gl => {
             const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
             const fs = WGL.createShader(gl, gl.FRAGMENT_SHADER, fragSource);
             const program = WGL.createProgram(gl, vs, fs);
+            const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
+            
+            gl.bindVertexArray(vao);
+
+            const planeGeo = WGL.createPlaneGeo().map(i => (i + 1) / 2);
+            const planeGeoAttrib = new WGL.Attribute(gl, program, 'a_planeGeo');
+
             Mouse._ctx = gl;
             Mouse._program = program;
+            Mouse._vao = vao;
+            Mouse._planeAttrib = planeGeoAttrib;
+            Mouse._xfrmAttrib = new WGL.Attribute(gl, program, 'a_xfrm');
+            Mouse._matrixUniform = new WGL.Uniform(gl, program, 'u_viewMatrix', WGL.Uniform_Types.MAT3);
+
+            planeGeoAttrib.set(new Float32Array(planeGeo), 2, gl.FLOAT);
+            Mouse._xfrmAttrib.setDivisor(1);
+            Mouse._matrixUniform.set(false, new Mat3().data);
+
             return true;
         });
     })();
 
     private readonly _camera: Camera;
     private _brushPoints: Vector[] = [];
+    private _renderLength: number = 0;
 
     curTool: MOUSE_TOOLS = MOUSE_TOOLS.NONE;
     createObjCallback: (()=>void) | null = null;
@@ -89,9 +111,10 @@ export default class Mouse {
         });
     }
 
-    private _recalcGeo(){
+    private _recalcGeo(): void {
         const spline = Bezier.splineFromPoints(this._brushPoints);
-        const bounds = new Array<ReturnType<typeof Bezier.boundsFromCurve>>(Math.round(spline.length / 4));
+        const bounds = new Array<ReturnType<typeof Bezier.boundsFromCurve>>(this._brushPoints.length - 1);
+        const xywhList = new Array<number>(bounds.length * 4);
 
         for (let i = 0; i < bounds.length; i++){
             const splineIdx = i * 3;
@@ -104,8 +127,22 @@ export default class Mouse {
             bounds[i] = Bezier.boundsFromCurve(curve);
         }
         
-        //Need to calculate width/height
+        //Fill list with <px, py, width, height>
+        for (let i = 0; i < bounds.length; i++){
+            const box = bounds[i];
+            const width = box.br.x - box.ul.x;
+            const height = box.ul.y - box.br.y;
+            const idx = i * 4;
+            xywhList[idx + 0] = box.ul.x;
+            xywhList[idx + 1] = box.br.y;
+            xywhList[idx + 2] = width;
+            xywhList[idx + 3] = height;
+        }
+
         //Need to set vertex attribute for <ul.x, ul.y, width, height>
+        Mouse._ctx.bindVertexArray(Mouse._vao);
+        Mouse._xfrmAttrib.set(new Float32Array(xywhList), 4, Mouse._ctx.FLOAT);
+        this._renderLength = bounds.length;
     }
 
     setTool(tool: {type: MOUSE_TOOLS, newTool?: ()=>void}): void {
@@ -113,7 +150,36 @@ export default class Mouse {
         this.createObjCallback = tool.newTool ?? null;
     }
 
+    resize(dimensions: ConstVector): void {
+        const scaleMatrix = new Mat3([
+            1 / dimensions.x, 0, 0,
+            0, 1 / dimensions.y, 0,
+            0, 0, 1
+        ]);
+
+        Mouse._ctx.useProgram(Mouse._program);
+        Mouse._matrixUniform.set(false, scaleMatrix.data);
+    }
+
     render(): void {
-        if (this._brushPoints.length == 0) return;
+        if (this._renderLength == 0) return;
+
+        const gl = Mouse._ctx;
+
+        gl.useProgram(Mouse._program);
+        gl.bindVertexArray(Mouse._vao);
+
+        Mouse._planeAttrib.enable();
+        Mouse._xfrmAttrib.enable();
+
+        gl.drawArraysInstanced(
+            gl.TRIANGLES,
+            0,
+            6,
+            this._renderLength
+        );
+
+        Mouse._planeAttrib.disable();
+        Mouse._xfrmAttrib.disable();
     }
 }

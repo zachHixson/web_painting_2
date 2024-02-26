@@ -48,6 +48,14 @@ function initProgram(ctx: WebGL2RenderingContext){
     env.mouse.setTool(tools[1]);
     createButtons(env.mouse);
 
+    window.addEventListener('resize', ()=>{
+        renderer.resize();
+        
+        const dimensions = new Vector(renderer.canvas.width, renderer.canvas.height)
+        env.camera.setDimensions(dimensions);
+        env.mouse.resize(dimensions);
+    });
+
     update(env, renderer);
 }
 
