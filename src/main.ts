@@ -1,9 +1,9 @@
 import './style.css';
-import { Vector } from './lib/Vector';
 import Renderer from './Renderer';
 import { compileShaders } from './ShaderPrecompiler';
 import Mouse from './Mouse';
 import { MOUSE_TOOLS } from './Mouse';
+import * as WGL from './lib/wgl';
 
 import placeHolderIcon from '../public/vite.svg';
 import btnTemplate from './button.html?raw';
@@ -35,7 +35,10 @@ const tools: {
 
 window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    const ctx = canvas.getContext('webgl2')!;
+    const ctx = WGL.nullError(
+        canvas.getContext('webgl2'),
+        new Error('Error creating Web GL 2 context. Please update your browser')
+    );
 
     compileShaders(ctx).then(()=>initProgram(ctx));
 }

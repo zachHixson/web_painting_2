@@ -14,10 +14,10 @@ export default class Renderer {
     private static _viewMat: WGL.Uniform;
     static _shaderInit = (()=>{
         registerPrecompileCallback(gl => {
-            const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource)!;
-            const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource)!;
+            const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource);
+            const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource);
             Renderer._ctx = gl;
-            Renderer._worldProgram = WGL.createProgram(gl, worldVS, worldFS)!;
+            Renderer._worldProgram = WGL.createProgram(gl, worldVS, worldFS);
             Renderer._positionAttr = new WGL.Attribute(gl, this._worldProgram, 'a_position');
             Renderer._viewMat = new WGL.Uniform(gl, Renderer._worldProgram, 'u_viewMat', WGL.Uniform_Types.MAT3);
             return true;
@@ -28,7 +28,7 @@ export default class Renderer {
 
     constructor(onResize: EventEmitter<(dimensions: ConstVector)=>void>){
         const gl = Renderer._ctx;
-        this._vao = gl.createVertexArray()!;
+        this._vao = WGL.nullError(gl.createVertexArray(), new Error('Error creating vertex array object'));
         gl.bindVertexArray(this._vao);
         Renderer._positionAttr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
 
