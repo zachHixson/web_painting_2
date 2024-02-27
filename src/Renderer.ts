@@ -4,6 +4,8 @@ import Renderable from './objects/Renderable';
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
 import { registerPrecompileCallback } from './ShaderPrecompiler';
+import { ConstVector } from './lib/Vector';
+import EventEmitter from './lib/EventEmitter';
 
 export default class Renderer {
     private static _ctx: WebGL2RenderingContext;
@@ -24,25 +26,20 @@ export default class Renderer {
 
     private _vao: WebGLVertexArrayObject;
 
-    constructor(){
+    constructor(onResize: EventEmitter<(dimensions: ConstVector)=>void>){
         const gl = Renderer._ctx;
         this._vao = gl.createVertexArray()!;
         gl.bindVertexArray(this._vao);
         Renderer._positionAttr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
+
+        onResize.addListener(this.resize.bind(this));
     }
 
     get canvas(){return Renderer._ctx.canvas}
 
     resize(): void {
-        const canvas = Renderer._ctx.canvas as HTMLCanvasElement;
-        const parentBounds = canvas.parentElement!.getBoundingClientRect();
-        const width = parentBounds.width;
-        const height = parentBounds.height;
-
-        canvas.width = width * devicePixelRatio;
-        canvas.height = height * devicePixelRatio;
-        canvas.style.width = width + 'px';
-        canvas.style.height = height + 'px';
+        const gl = Renderer._ctx;
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     }
 
     render(objects: Renderable[], viewMat: Mat3): void {
@@ -52,7 +49,6 @@ export default class Renderer {
         gl.bindVertexArray(this._vao);
         gl.useProgram(Renderer._worldProgram);
         Renderer._viewMat.set(false, viewMat.data);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         Renderer._positionAttr.enable();
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         Renderer._positionAttr.disable();

@@ -6,6 +6,7 @@ import vertSource from './shaders/mouseVertex.glsl?raw';
 import fragSource from './shaders/mouseFragment.glsl?raw';
 import { registerPrecompileCallback } from "./ShaderPrecompiler";
 import * as Bezier from './lib/Bezier';
+import EventEmitter from "./lib/EventEmitter";
 
 export enum MOUSE_TOOLS {
     MOVE = 1,
@@ -60,7 +61,7 @@ export default class Mouse {
     pos: Vector = new Vector();
     down: boolean = false;
 
-    constructor(canvas: HTMLCanvasElement, camera: Camera){
+    constructor(canvas: HTMLCanvasElement, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
         this._camera = camera;
 
         canvas.addEventListener('mousemove', e => {
@@ -95,7 +96,7 @@ export default class Mouse {
                 this._brushPoints.push(new Vector(e.offsetX, this._camera.getDimensions().y - e.offsetY));
             }
             else{
-                this._brushPoints = [];
+                this._clearGeo();
             }
         });
         canvas.addEventListener('mouseup', e => {
@@ -103,12 +104,14 @@ export default class Mouse {
 
             if (!this.down){
                 //submit points to new object
-                this._brushPoints = [];
+                this._clearGeo();
             }
         });
         canvas.addEventListener('wheel', e => {
             this._camera.zoom(-e.deltaY / 200);
         });
+
+        onResize.addListener(this.resize.bind(this));
     }
 
     private _recalcGeo(): void {
@@ -143,6 +146,11 @@ export default class Mouse {
         Mouse._ctx.bindVertexArray(Mouse._vao);
         Mouse._xfrmAttrib.set(new Float32Array(xywhList), 4, Mouse._ctx.FLOAT);
         this._renderLength = bounds.length;
+    }
+
+    private _clearGeo(): void {
+        this._brushPoints = [];
+        this._renderLength = 0;
     }
 
     setTool(tool: {type: MOUSE_TOOLS, newTool?: ()=>void}): void {

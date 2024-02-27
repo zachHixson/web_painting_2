@@ -1,5 +1,6 @@
 import { ConstVector, Vector } from '../lib/Vector';
 import { Mat3 } from '../lib/Mat3';
+import EventEmitter from '../lib/EventEmitter';
 
 export default class Camera {
     private _pos = new Vector(0, 0);
@@ -8,6 +9,10 @@ export default class Camera {
     private _mat = new Mat3();
     private _invMat = new Mat3();
     private _matrixNeedsUpdate = false;
+
+    constructor(onResize: EventEmitter<(dimensions: ConstVector)=>void>){
+        onResize.addListener(this.setDimensions.bind(this));
+    }
 
     getPos(): ConstVector {
         return this._pos;
