@@ -36,7 +36,9 @@ const tools: {
 window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const ctx = WGL.nullError(
-        canvas.getContext('webgl2'),
+        canvas.getContext('webgl2', {
+            premultipliedAlpha: false,
+        }),
         new Error('Error creating Web GL 2 context. Please update your browser')
     );
 

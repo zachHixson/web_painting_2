@@ -22,6 +22,8 @@ export default class Mouse {
     private static _vao: WebGLVertexArrayObject;
     private static _planeAttrib: WGL.Attribute;
     private static _xfrmAttrib: WGL.Attribute;
+    private static _endPointAttrib: WGL.Attribute;
+    private static _controlPointAttrib: WGL.Attribute;
     private static _matrixUniform: WGL.Uniform;
 
     static _shaderInit = (()=>{
@@ -41,10 +43,14 @@ export default class Mouse {
             Mouse._vao = vao;
             Mouse._planeAttrib = planeGeoAttrib;
             Mouse._xfrmAttrib = new WGL.Attribute(gl, program, 'a_xfrm');
+            Mouse._endPointAttrib = new WGL.Attribute(gl, program, 'a_endPoints');
+            Mouse._controlPointAttrib = new WGL.Attribute(gl, program, 'a_controlPoints');
             Mouse._matrixUniform = new WGL.Uniform(gl, program, 'u_viewMatrix', WGL.Uniform_Types.MAT3);
 
             planeGeoAttrib.set(new Float32Array(planeGeo), 2, gl.FLOAT);
             Mouse._xfrmAttrib.setDivisor(1);
+            Mouse._endPointAttrib.setDivisor(1);
+            Mouse._controlPointAttrib.setDivisor(1);
             Mouse._matrixUniform.set(false, new Mat3().data);
 
             return true;
@@ -118,6 +124,8 @@ export default class Mouse {
         const spline = Bezier.splineFromPoints(this._brushPoints);
         const bounds = new Array<ReturnType<typeof Bezier.boundsFromCurve>>(this._brushPoints.length - 1);
         const xywhList = new Array<number>(bounds.length * 4);
+        const endPoints = new Array<number>(xywhList.length);
+        const controlPoints = new Array<number>(xywhList.length);
 
         for (let i = 0; i < bounds.length; i++){
             const splineIdx = i * 3;
@@ -127,7 +135,7 @@ export default class Mouse {
                 spline[splineIdx + 2],
                 spline[splineIdx + 3]
             ];
-            bounds[i] = Bezier.boundsFromCurve(curve);
+            bounds[i] = Bezier.boundsFromCurve(curve, 10);
         }
         
         //Fill list with <px, py, width, height>
@@ -142,9 +150,25 @@ export default class Mouse {
             xywhList[idx + 3] = height;
         }
 
-        //Need to set vertex attribute for <ul.x, ul.y, width, height>
+        //fill points list
+        for (let i = 0; i < bounds.length; i++){
+            const splineIdx = i * 3;
+            const pointIdx = i * 4;
+            endPoints[pointIdx + 0] = spline[splineIdx + 0].x;
+            endPoints[pointIdx + 1] = spline[splineIdx + 0].y;
+            endPoints[pointIdx + 2] = spline[splineIdx + 3].x;
+            endPoints[pointIdx + 3] = spline[splineIdx + 3].y;
+            controlPoints[pointIdx + 0] = spline[splineIdx + 1].x;
+            controlPoints[pointIdx + 1] = spline[splineIdx + 1].y;
+            controlPoints[pointIdx + 2] = spline[splineIdx + 2].x;
+            controlPoints[pointIdx + 3] = spline[splineIdx + 2].y;
+        }
+
+        //Set output buffers
         Mouse._ctx.bindVertexArray(Mouse._vao);
         Mouse._xfrmAttrib.set(new Float32Array(xywhList), 4, Mouse._ctx.FLOAT);
+        Mouse._endPointAttrib.set(new Float32Array(endPoints), 4, Mouse._ctx.FLOAT);
+        Mouse._controlPointAttrib.set(new Float32Array(controlPoints), 4, Mouse._ctx.FLOAT);
         this._renderLength = bounds.length;
     }
 
@@ -174,11 +198,16 @@ export default class Mouse {
 
         const gl = Mouse._ctx;
 
+        gl.clearColor(0, 0, 0, 0);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.useProgram(Mouse._program);
         gl.bindVertexArray(Mouse._vao);
 
         Mouse._planeAttrib.enable();
         Mouse._xfrmAttrib.enable();
+        Mouse._endPointAttrib.enable();
+        Mouse._controlPointAttrib.enable();
 
         gl.drawArraysInstanced(
             gl.TRIANGLES,
@@ -189,5 +218,7 @@ export default class Mouse {
 
         Mouse._planeAttrib.disable();
         Mouse._xfrmAttrib.disable();
+        Mouse._endPointAttrib.disable();
+        Mouse._controlPointAttrib.disable();
     }
 }
