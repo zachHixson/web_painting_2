@@ -1,12 +1,13 @@
 import { ConstVector, Vector } from "./lib/Vector";
 import { Mat3 } from "./lib/Mat3";
-import Camera from "./objects/Camera";
+import Camera from "./Camera";
 import * as WGL from './lib/wgl';
 import vertSource from './shaders/mouseVertex.glsl?raw';
 import fragSource from './shaders/mouseFragment.glsl?raw';
 import { registerPrecompileCallback } from "./ShaderPrecompiler";
 import * as Bezier from './lib/Bezier';
 import EventEmitter from "./lib/EventEmitter";
+import Object_Base from "./objects/Object_Base";
 
 export enum MOUSE_TOOLS {
     MOVE = 1,
@@ -15,6 +16,8 @@ export enum MOUSE_TOOLS {
     WIND,
     NONE,
 }
+
+export type NewObjectCallback = new (...args: ConstructorParameters<typeof Object_Base>)=>Object_Base;
 
 export default class Mouse {
     private static _ctx: WebGL2RenderingContext;
@@ -58,30 +61,31 @@ export default class Mouse {
     })();
 
     private readonly _camera: Camera;
+    private _curTool: MOUSE_TOOLS = MOUSE_TOOLS.NONE;
+    private _lastPos: Vector = new Vector();
+    private _pos: Vector = new Vector();
+    private _down: boolean = false;
+    private _createObjCallback: (NewObjectCallback) | null = null;
     private _brushPoints: Vector[] = [];
     private _renderLength: number = 0;
 
-    curTool: MOUSE_TOOLS = MOUSE_TOOLS.NONE;
-    createObjCallback: (()=>void) | null = null;
-    lastPos: Vector = new Vector();
-    pos: Vector = new Vector();
-    down: boolean = false;
+    readonly onCommit = new EventEmitter<(createObj: NewObjectCallback, points: Vector[])=>void>();
 
     constructor(canvas: HTMLCanvasElement, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
         this._camera = camera;
 
         canvas.addEventListener('mousemove', e => {
-            this.lastPos.copy(this.pos);
-            this.pos.set(e.offsetX, e.offsetY);
+            this._lastPos.copy(this._pos);
+            this._pos.set(e.offsetX, e.offsetY);
     
-            if ((this.down && this.curTool == MOUSE_TOOLS.MOVE) || e.buttons & 0b100){
-                const delta = this.pos.clone().subtract(this.lastPos).scale(2 / this._camera.getScale());
+            if ((this._down && this._curTool == MOUSE_TOOLS.MOVE) || e.buttons & 0b100){
+                const delta = this._pos.clone().subtract(this._lastPos).scale(2 / this._camera.getScale());
                 delta.x *= -1;
                 this._camera.slide(delta);
                 return;
             }
 
-            if (this.down && this.curTool != MOUSE_TOOLS.MOVE){
+            if (this._down && this._curTool != MOUSE_TOOLS.MOVE){
                 const curScreenPos = new Vector(e.offsetX, this._camera.getDimensions().y - e.offsetY);
                 const lastPoint = this._brushPoints[this._brushPoints.length - 1];
                 const distCheck = curScreenPos.distanceTo(lastPoint) > 100;
@@ -94,11 +98,11 @@ export default class Mouse {
             }
         });
         canvas.addEventListener('mousedown', e => {
-            this.down = !!(e.buttons & 0b001);
+            this._down = !!(e.buttons & 0b001);
 
-            if (this.curTool == MOUSE_TOOLS.MOVE) return;
+            if (this._curTool == MOUSE_TOOLS.MOVE) return;
 
-            if (this.down){
+            if (this._down){
                 this._brushPoints.push(new Vector(e.offsetX, this._camera.getDimensions().y - e.offsetY));
             }
             else{
@@ -106,12 +110,16 @@ export default class Mouse {
             }
         });
         canvas.addEventListener('mouseup', e => {
-            this.down = !!(e.buttons & 0b001);
+            this._down = !!(e.buttons & 0b001);
 
-            if (!this.down){
-                //submit points to new object
-                this._clearGeo();
+            if (this._down) return;
+
+            //submit points to new object
+            if (this._createObjCallback){
+                this.onCommit.emit(this._createObjCallback, this._brushPoints);
             }
+            
+            this._clearGeo();
         });
         canvas.addEventListener('wheel', e => {
             this._camera.zoom(-e.deltaY / 200);
@@ -119,6 +127,8 @@ export default class Mouse {
 
         onResize.addListener(this.resize.bind(this));
     }
+
+    get tool(){return this._curTool}
 
     private _recalcGeo(): void {
         const spline = Bezier.splineFromPoints(this._brushPoints);
@@ -177,9 +187,9 @@ export default class Mouse {
         this._renderLength = 0;
     }
 
-    setTool(tool: {type: MOUSE_TOOLS, newTool?: ()=>void}): void {
-        this.curTool = tool.type;
-        this.createObjCallback = tool.newTool ?? null;
+    setTool(tool: {type: MOUSE_TOOLS, newObj?: NewObjectCallback}): void {
+        this._curTool = tool.type;
+        this._createObjCallback = tool.newObj ?? null;
     }
 
     resize(dimensions: ConstVector): void {

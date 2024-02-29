@@ -1,10 +1,10 @@
 import { Mat3 } from './lib/Mat3';
 import * as WGL from './lib/wgl';
-import Renderable from './objects/Renderable';
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
 import { registerPrecompileCallback } from './ShaderPrecompiler';
 import Environment from './Environment';
+import Object_Base from './objects/Object_Base';
 
 export default class Renderer {
     private static _ctx: WebGL2RenderingContext;
@@ -41,7 +41,7 @@ export default class Renderer {
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     }
 
-    render(objects: Renderable[], viewMat: Mat3): void {
+    render(objects: Object_Base[], viewMat: Mat3): void {
         const gl = Renderer._ctx;
 
         //render world background
@@ -54,7 +54,7 @@ export default class Renderer {
 
         //draw all objects
         for (let i = 0; i < objects.length; i++){
-            objects[i].render(gl, viewMat);
+            objects[i].render(viewMat);
         }
     }
 }

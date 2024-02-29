@@ -1,6 +1,6 @@
-import { ConstVector, Vector } from '../lib/Vector';
-import { Mat3 } from '../lib/Mat3';
-import EventEmitter from '../lib/EventEmitter';
+import { ConstVector, Vector } from './lib/Vector';
+import { Mat3 } from './lib/Mat3';
+import EventEmitter from './lib/EventEmitter';
 
 export default class Camera {
     private _pos = new Vector(0, 0);

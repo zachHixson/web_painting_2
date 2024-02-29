@@ -1,26 +1,28 @@
 import './style.css';
 import { compileShaders } from './ShaderPrecompiler';
 import Mouse from './Mouse';
+import type { NewObjectCallback } from './Mouse';
 import { MOUSE_TOOLS } from './Mouse';
 import * as WGL from './lib/wgl';
 
 import placeHolderIcon from '../public/vite.svg';
 import btnTemplate from './button.html?raw';
 import Environment from './Environment';
+import Dirt from './objects/Dirt';
 
 const tools: {
     type: MOUSE_TOOLS,
     icon: string,
-    newTool?: ()=>void,
+    newObj?: NewObjectCallback,
 }[] = [
     {
         type: MOUSE_TOOLS.MOVE,
         icon: placeHolderIcon,
-        newTool: ()=>{},
     },
     {
         type: MOUSE_TOOLS.DIRT,
         icon: placeHolderIcon,
+        newObj: Dirt,
     },
     {
         type: MOUSE_TOOLS.RAIN,
@@ -72,7 +74,7 @@ function createButtons(mouse: Mouse): void {
             mouse.setTool(tools[i]);
         });
 
-        if (mouse.curTool == tools[i].type){
+        if (mouse.tool == tools[i].type){
             btn.classList.add('tool-selected');
         }
 
