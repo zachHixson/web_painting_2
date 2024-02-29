@@ -13,12 +13,14 @@ export default class Renderer {
     private static _viewMat: WGL.Uniform;
     static _shaderInit = (()=>{
         registerPrecompileCallback(gl => {
+            const modifiedFSrc = worldFSource.replace('${WORLD_SIZE}', Environment.SIZE.toString());
             const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource);
-            const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, worldFSource);
+            const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, modifiedFSrc);
             Renderer._ctx = gl;
             Renderer._worldProgram = WGL.createProgram(gl, worldVS, worldFS);
             Renderer._positionAttr = new WGL.Attribute(gl, this._worldProgram, 'a_position');
             Renderer._viewMat = new WGL.Uniform(gl, Renderer._worldProgram, 'u_viewMat', WGL.Uniform_Types.MAT3);
+
             return true;
         });
     })();

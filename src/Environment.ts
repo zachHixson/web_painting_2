@@ -6,6 +6,8 @@ import Renderer from "./Renderer";
 import Object_Base from "./objects/Object_Base";
 
 export default class Environment {
+    static readonly SIZE = 8192;
+
     readonly ctx: WebGL2RenderingContext;
     readonly camera: Camera;
     readonly mouse: Mouse;
