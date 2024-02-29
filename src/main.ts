@@ -1,5 +1,4 @@
 import './style.css';
-import Renderer from './Renderer';
 import { compileShaders } from './ShaderPrecompiler';
 import Mouse from './Mouse';
 import { MOUSE_TOOLS } from './Mouse';
@@ -47,13 +46,10 @@ window.onload = ()=>{
 
 function initProgram(ctx: WebGL2RenderingContext){
     const env = new Environment(ctx);
-    const renderer = new Renderer(env.onResize);
     env.mouse.setTool(tools[1]);
     createButtons(env.mouse);
 
-    env.resize();
-
-    update(env, renderer);
+    startUpdate(env);
 }
 
 function createButtons(mouse: Mouse): void {
@@ -84,8 +80,11 @@ function createButtons(mouse: Mouse): void {
     }
 }
 
-function update(env: Environment, renderer: Renderer): void {
-    renderer.render(env.renderList, env.camera.getInvMatrix());
-    env.mouse.render();
-    requestAnimationFrame(()=>update(env, renderer));
+function startUpdate(env: Environment): void {
+    const updateCB = ()=>update(env);
+    const update = (env: Environment) => {
+        env.render();
+        requestAnimationFrame(updateCB);
+    };
+    update(env);
 }

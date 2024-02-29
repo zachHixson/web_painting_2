@@ -3,12 +3,14 @@ import Camera from "./objects/Camera";
 import Renderable from "./objects/Renderable";
 import EventEmitter from "./lib/EventEmitter";
 import { ConstVector, Vector } from "./lib/Vector";
+import Renderer from "./Renderer";
 
 export default class Environment {
     readonly ctx: WebGL2RenderingContext;
     readonly camera: Camera;
     readonly mouse: Mouse;
-    readonly renderList: Renderable[] = [];
+    private readonly renderer: Renderer;
+    private readonly renderList: Renderable[] = [];
 
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
 
@@ -16,8 +18,10 @@ export default class Environment {
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
         this.mouse = new Mouse(this.ctx.canvas as HTMLCanvasElement, this.camera, this.onResize);
+        this.renderer = new Renderer(this.onResize);
 
         window.addEventListener('resize', this.resize.bind(this));
+        this.resize();
     }
 
     resize(): void {
@@ -32,5 +36,10 @@ export default class Environment {
         canvas.style.height = height + 'px';
 
         this.onResize.emit(new Vector(canvas.width, canvas.height));
+    }
+
+    render(): void {
+        this.renderer.render(this.renderList, this.camera.getInvMatrix());
+        this.mouse.render();
     }
 }

@@ -4,8 +4,7 @@ import Renderable from './objects/Renderable';
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
 import { registerPrecompileCallback } from './ShaderPrecompiler';
-import { ConstVector } from './lib/Vector';
-import EventEmitter from './lib/EventEmitter';
+import Environment from './Environment';
 
 export default class Renderer {
     private static _ctx: WebGL2RenderingContext;
@@ -26,7 +25,7 @@ export default class Renderer {
 
     private _vao: WebGLVertexArrayObject;
 
-    constructor(onResize: EventEmitter<(dimensions: ConstVector)=>void>){
+    constructor(onResize: InstanceType<typeof Environment>['onResize']){
         const gl = Renderer._ctx;
         this._vao = WGL.nullError(gl.createVertexArray(), new Error('Error creating vertex array object'));
         gl.bindVertexArray(this._vao);
