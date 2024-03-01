@@ -43,20 +43,20 @@ export default class Renderer {
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     }
 
-    render(objects: Object_Base[], viewMat: Mat3): void {
+    render(objects: Object_Base[], viewMat: Mat3, invViewMat: Mat3): void {
         const gl = Renderer._ctx;
 
         //render world background
         gl.bindVertexArray(this._vao);
         gl.useProgram(Renderer._worldProgram);
-        Renderer._viewMat.set(false, viewMat.data);
+        Renderer._viewMat.set(false, invViewMat.data);
         Renderer._positionAttr.enable();
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         Renderer._positionAttr.disable();
 
         //draw all objects
         for (let i = 0; i < objects.length; i++){
-            objects[i].render(viewMat);
+            objects[i].render(viewMat, invViewMat);
         }
     }
 }

@@ -112,10 +112,19 @@ export default class Mouse {
         canvas.addEventListener('mouseup', e => {
             this._down = !!(e.buttons & 0b001);
 
-            if (this._down) return;
+            if (this._down || this._brushPoints.length == 0) return;
 
             //submit points to new object
             if (this._createObjCallback){
+                const xposeMat = this._camera.getInvMatrix().clone().transpose();
+                for (let i = 0; i < this._brushPoints.length; i++){
+                    this._brushPoints[i]
+                        .divide(this._camera.getDimensions())
+                        .scale(2)
+                        .subtractScalar(1)
+                        .multiplyMat3(xposeMat);
+                }
+
                 this.onCommit.emit(this._createObjCallback, this._brushPoints);
             }
             

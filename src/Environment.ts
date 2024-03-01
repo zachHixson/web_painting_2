@@ -50,7 +50,7 @@ export default class Environment {
     }
 
     render(): void {
-        this.renderer.render(this.objectList, this.camera.getInvMatrix());
+        this.renderer.render(this.objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
         this.mouse.render();
     }
 }
