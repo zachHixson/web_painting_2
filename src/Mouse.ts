@@ -67,6 +67,7 @@ export default class Mouse {
     private _down: boolean = false;
     private _createObjCallback: (NewObjectCallback) | null = null;
     private _brushPoints: Vector[] = [];
+    private _splinePoints: Vector[] = [];
     private _renderLength: number = 0;
 
     readonly onCommit = new EventEmitter<(createObj: NewObjectCallback, points: Vector[])=>void>();
@@ -117,15 +118,15 @@ export default class Mouse {
             //submit points to new object
             if (this._createObjCallback){
                 const xposeMat = this._camera.getInvMatrix().clone().transpose();
-                for (let i = 0; i < this._brushPoints.length; i++){
-                    this._brushPoints[i]
+                for (let i = 0; i < this._splinePoints.length; i++){
+                    this._splinePoints[i]
                         .divide(this._camera.getDimensions())
                         .scale(2)
                         .subtractScalar(1)
                         .multiplyMat3(xposeMat);
                 }
 
-                this.onCommit.emit(this._createObjCallback, this._brushPoints);
+                this.onCommit.emit(this._createObjCallback, this._splinePoints);
             }
             
             this._clearGeo();
@@ -188,11 +189,13 @@ export default class Mouse {
         Mouse._xfrmAttrib.set(new Float32Array(xywhList), 4, Mouse._ctx.FLOAT);
         Mouse._endPointAttrib.set(new Float32Array(endPoints), 4, Mouse._ctx.FLOAT);
         Mouse._controlPointAttrib.set(new Float32Array(controlPoints), 4, Mouse._ctx.FLOAT);
+        this._splinePoints = spline;
         this._renderLength = bounds.length;
     }
 
     private _clearGeo(): void {
         this._brushPoints = [];
+        this._splinePoints = [];
         this._renderLength = 0;
     }
 

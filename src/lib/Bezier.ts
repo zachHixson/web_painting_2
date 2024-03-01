@@ -170,3 +170,31 @@ export function boundsFromCurve(curve: ConstVector[], padding: number = 0): {ul:
 
     return {ul, br};
 }
+
+export function interpolateSpline(spline: ConstVector[], density: number): ConstVector[] {
+    const ptsPerCurve = Math.floor(1 / density);
+        const curves = new Array((spline.length - 1) / 3);
+        const bezPoints = new Array(ptsPerCurve * curves.length);
+
+        //build curve list
+        for (let i = 0; i < curves.length; i++){
+            const idx = i * 3;
+            const curve = [
+                spline[idx + 0],
+                spline[idx + 1],
+                spline[idx + 2],
+                spline[idx + 3],
+            ];
+            curves[i] = curve;
+        }
+
+        //interpolate curves
+        for (let i = 0; i < curves.length; i++){
+            for (let p = 0; p < ptsPerCurve; p++){
+                const pt = pointFromCurve(curves[i], p * density);
+                bezPoints[(i * ptsPerCurve) + p] = pt;
+            }
+        }
+
+        return bezPoints;
+}

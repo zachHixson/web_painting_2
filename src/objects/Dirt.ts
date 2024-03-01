@@ -27,10 +27,11 @@ export default class Dirt extends Object_Base {
     constructor(points: ConstVector[], env: Environment){
         super(points, env);
 
-        const startingData = this._getXfrmData(points);
+        const interpPoints = Bezier.interpolateSpline(points, 0.2);
+        const startingData = this._getXfrmData(interpPoints);
 
         this._renderPass = this._setupRenderPasses(startingData, env);
-        this._renderCount = points.length - 1;
+        this._renderCount = interpPoints.length - 1;
     }
 
     private _getXfrmData(points: ConstVector[]): Float32Array {
