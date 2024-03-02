@@ -28,28 +28,27 @@ export default class Dirt extends Object_Base {
         super(points, env);
 
         const interpPoints = Bezier.interpolateSpline(points, 0.2);
-        const startingData = this._getXfrmData(interpPoints);
+        const startingData = this._getPositionData(interpPoints);
 
         this._renderPass = this._setupRenderPasses(startingData, env);
         this._renderCount = interpPoints.length - 1;
     }
 
-    private _getXfrmData(points: ConstVector[]): Float32Array {
-        const startingData = new Float32Array(32 * 32 * 4);
+    private _getPositionData(points: ConstVector[]): Float32Array {
+        const expanded = new Float32Array(points.length * 2);
 
         for (let i = 0; i < points.length; i++){
-            const idx = i * 4;
-            startingData[idx + 0] = points[i].x;
-            startingData[idx + 1] = points[i].y;
+            const idx = i * 2;
+            expanded[idx + 0] = points[i].x;
+            expanded[idx + 1] = points[i].y;
         }
 
-        return startingData;
+        return expanded;
     }
 
     private _setupRenderPasses(startingData: Float32Array, env: Environment): RenderPass {
         const gl = env.ctx;
         const vao = WGL.nullError(gl.createVertexArray(), new Error('Error creating vertex array object'));
-        const xfrmTex = Dirt._getDataTexture(gl, 32, startingData);
         const planeGeo = WGL.createPlaneGeo();
 
         gl.bindVertexArray(vao);
@@ -69,10 +68,13 @@ export default class Dirt extends Object_Base {
                     attr.set(new Float32Array(planeGeo), 2, gl.FLOAT);
                     return attr;
                 })(),
+                instPos: (()=>{
+                    const attr = new WGL.Attribute(gl, Dirt._renderProgram, 'a_pos');
+                    attr.set(startingData, 2, gl.FLOAT);
+                    attr.setDivisor(1);
+                    return attr;
+                })(),
             },
-            textures: {
-                xfrmTex: new WGL.Texture_Uniform(gl, Dirt._renderProgram, 'u_xfrm', xfrmTex),
-            }
         });
 
         return renderPass;
