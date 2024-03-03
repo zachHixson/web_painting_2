@@ -43,6 +43,10 @@ window.onload = ()=>{
         new Error('Error creating Web GL 2 context. Please update your browser')
     );
 
+    ctx.clearColor(0, 0, 0, 0);
+    ctx.enable(ctx.BLEND);
+    ctx.blendFuncSeparate(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA, ctx.ONE, ctx.ONE_MINUS_SRC_ALPHA);
+
     compileShaders(ctx).then(()=>initProgram(ctx));
 }
 
@@ -85,6 +89,7 @@ function createButtons(mouse: Mouse): void {
 function startUpdate(env: Environment): void {
     const updateCB = ()=>update(env);
     const update = (env: Environment) => {
+        env.update();
         env.render();
         requestAnimationFrame(updateCB);
     };

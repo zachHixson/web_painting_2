@@ -8,6 +8,7 @@ import dirtVSource from '../shaders/dirtVertex.glsl?raw';
 import dirtFSource from '../shaders/dirtFragment.glsl?raw';
 import RenderPass from "../lib/RenderPass";
 import * as Bezier from '../lib/Bezier';
+import * as Util from '../lib/Util';
 
 export default class Dirt extends Object_Base {
     private static _renderProgram: WebGLProgram;
@@ -23,15 +24,19 @@ export default class Dirt extends Object_Base {
 
     private _renderPass: RenderPass;
     private _renderCount: number = 0;
+    private _backAnim: number = 0;
+
+    readonly bounds: Util.Rect;
 
     constructor(points: ConstVector[], env: Environment){
         super(points, env);
 
-        const interpPoints = Bezier.interpolateSpline(points, 0.2);
+        const interpPoints = Bezier.interpolateSpline(points, 0.1 * env.camera.getScale());
         const startingData = this._getPositionData(interpPoints);
 
         this._renderPass = this._setupRenderPasses(startingData, env);
         this._renderCount = interpPoints.length - 1;
+        this.bounds = Dirt._calcBounds(interpPoints, 100);
     }
 
     private _getPositionData(points: ConstVector[]): Float32Array {
@@ -61,6 +66,7 @@ export default class Dirt extends Object_Base {
             uniforms: {
                 backAnim: new WGL.Uniform(gl, Dirt._renderProgram, 'u_backAnim', WGL.Uniform_Types.FLOAT),
                 viewMat: new WGL.Uniform(gl, Dirt._renderProgram, 'u_viewMat', WGL.Uniform_Types.MAT3),
+                decay: new WGL.Uniform(gl, Dirt._renderProgram, 'u_decay', WGL.Uniform_Types.FLOAT),
             },
             attributes: {
                 planeGeo: (()=>{
@@ -80,10 +86,15 @@ export default class Dirt extends Object_Base {
         return renderPass;
     }
 
-    update(){}
+    update(delta: number){
+        this._backAnim = Math.min(this._backAnim + (delta * 10), 1);
+    }
 
     render(viewMat: Mat3): void {
+        if (!Util.rectIntersect(this.bounds, this._env.camera.getScreenBounds())) return;
+
         this._renderPass.enable();
+        this._renderPass.uniforms!.backAnim.set(Dirt._interpBack(this._backAnim));
         this._renderPass.uniforms!.viewMat.set(false, viewMat.data);
         this._renderPass.renderInstanced(this._renderCount);
         this._renderPass.disable();

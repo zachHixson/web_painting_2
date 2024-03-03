@@ -220,9 +220,6 @@ export default class Mouse {
 
         const gl = Mouse._ctx;
 
-        gl.clearColor(0, 0, 0, 0);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.useProgram(Mouse._program);
         gl.bindVertexArray(Mouse._vao);
 

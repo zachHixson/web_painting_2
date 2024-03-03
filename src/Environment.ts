@@ -8,11 +8,12 @@ import Object_Base from "./objects/Object_Base";
 export default class Environment {
     static readonly SIZE = 8192;
 
+    private readonly _renderer: Renderer;
+    private readonly _objectList: Object_Base[] = [];
+    private _lastFrameTime = 0;
     readonly ctx: WebGL2RenderingContext;
     readonly camera: Camera;
     readonly mouse: Mouse;
-    private readonly renderer: Renderer;
-    private readonly objectList: Object_Base[] = [];
 
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
 
@@ -20,7 +21,7 @@ export default class Environment {
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
         this.mouse = new Mouse(this.ctx.canvas as HTMLCanvasElement, this.camera, this.onResize);
-        this.renderer = new Renderer(this.onResize);
+        this._renderer = new Renderer(this.onResize);
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
@@ -28,11 +29,13 @@ export default class Environment {
         this.mouse.onCommit.addListener((createObj, points) => {
             const obj = new createObj(points, this);
             obj.onExpire.addListener(()=>{
-                const idx = this.objectList.findIndex(i => i == obj);
-                this.objectList.splice(idx, 1);
+                const idx = this._objectList.findIndex(i => i == obj);
+                this._objectList.splice(idx, 1);
             });
-            this.objectList.push(obj);
+            this._objectList.push(obj);
         });
+
+        this._lastFrameTime = performance.now();
     }
 
     resize(): void {
@@ -49,8 +52,19 @@ export default class Environment {
         this.onResize.emit(new Vector(canvas.width, canvas.height));
     }
 
+    update(): void {
+        const now = performance.now();
+        const delta = (now - this._lastFrameTime) / 1000;
+
+        for (let i = 0; i < this._objectList.length; i++){
+            this._objectList[i].update(delta);
+        }
+
+        this._lastFrameTime = now;
+    }
+
     render(): void {
-        this.renderer.render(this.objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
+        this._renderer.render(this._objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
         this.mouse.render();
     }
 }

@@ -3,6 +3,7 @@ import EventEmitter from "../lib/EventEmitter";
 import Environment from "../Environment";
 import { ConstVector } from "../lib/Vector";
 import * as WGL from '../lib/wgl';
+import * as Util from '../lib/Util';
 
 export default abstract class Object_Base {
     protected _env: Environment;
@@ -19,6 +20,32 @@ export default abstract class Object_Base {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
         return tex;
+    }
+
+    protected static _calcBounds(points: ConstVector[], padding: number = 0): Util.Rect {
+        const firstPoint = points[0];
+        const min = firstPoint.clone();
+        const max = min.clone();
+
+        points.forEach(p => {
+            min.x = Math.min(min.x, p.x);
+            min.y = Math.min(min.y, p.y);
+            max.x = Math.max(max.x, p.x);
+            max.y = Math.max(max.y, p.y);
+        });
+
+        min.subtractScalar(padding);
+        max.addScalar(padding);
+
+        return {min, max};
+    }
+
+    protected static _interpBack(val: number): number {
+        const c1 = 3;
+        const c3 = c1 + 1;
+        const vm1 = val - 1;
+
+        return 1 + c3 * Math.pow(vm1, 3) + c1 * Math.pow(vm1, 2);
     }
 
     onExpire = new EventEmitter<(args: {obj: Object_Base})=>void>();

@@ -56,6 +56,7 @@ void main(){
     float bezier = 1.0 - bezier(gl_FragCoord.xy, p0, p1, p2, p3);
 
     vec3 outCol = mix(vec3(1.0, 0.4, 0.4), vec3(1.0), dots);
+    float outMask = min(max(bezier, dots), 1.0);
 
-    outColor = vec4(outCol, max(bezier, dots));
+    outColor = vec4(outCol, outMask);
 }
