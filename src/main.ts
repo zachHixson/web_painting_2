@@ -5,11 +5,12 @@ import type { NewObjectCallback } from './Mouse';
 import { MOUSE_TOOLS } from './Mouse';
 import * as WGL from './lib/wgl';
 
-import placeHolderIcon from '../public/vite.svg';
+import placeHolderIcon from '/vite.svg';
 import btnTemplate from './button.html?raw';
 import Environment from './Environment';
 import Dirt from './objects/Dirt';
 
+//create a list of objects that will be used to create the visual tool buttons
 const tools: {
     type: MOUSE_TOOLS,
     icon: string,
@@ -50,6 +51,9 @@ window.onload = ()=>{
     compileShaders(ctx).then(()=>initProgram(ctx));
 }
 
+/**
+ * Used to start the program
+ */
 function initProgram(ctx: WebGL2RenderingContext){
     const env = new Environment(ctx);
     env.mouse.setTool(tools[1]);
@@ -58,6 +62,9 @@ function initProgram(ctx: WebGL2RenderingContext){
     startUpdate(env);
 }
 
+/**
+ * Dynamically creates HTML buttons for each tool
+ */
 function createButtons(mouse: Mouse): void {
     const toolbar = document.getElementById('toolbar') as HTMLDivElement;
     const el = document.createElement('div');
@@ -86,6 +93,9 @@ function createButtons(mouse: Mouse): void {
     }
 }
 
+/**
+ * Starts the update/rendering cycle
+ */
 function startUpdate(env: Environment): void {
     const updateCB = ()=>update(env);
     const update = (env: Environment) => {

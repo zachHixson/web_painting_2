@@ -6,6 +6,9 @@ import { registerPrecompileCallback } from './ShaderPrecompiler';
 import Environment from './Environment';
 import Object_Base from './objects/Object_Base';
 
+/**
+ * The main renderer for the application. Built to only support one renderer at a time
+ */
 export default class Renderer {
     private static _ctx: WebGL2RenderingContext;
     private static _worldProgram: WebGLProgram;

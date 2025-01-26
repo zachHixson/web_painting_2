@@ -43,6 +43,9 @@ export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLSha
     return program;
 }
 
+/**
+ * Checks if an object is null, and if not throws error. Can be used as generic function.
+ */
 export function nullError<T extends object>(obj: T | null, err: Error): T {
     if (obj){
         return obj;
