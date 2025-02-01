@@ -22,6 +22,9 @@ export enum MOUSE_TOOLS {
 
 export type NewObjectCallback = new (...args: ConstructorParameters<typeof Object_Base>)=>Object_Base;
 
+/**
+ * A class which handles the mouse calculations and drawing
+ */
 export default class Mouse {
     static precompileShader(gl: WebGL2RenderingContext): { id: symbol, program: WebGLProgram } {
         const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
@@ -42,6 +45,9 @@ export default class Mouse {
     private _renderLength: number = 0;
     private _renderPass: RenderPass;
 
+    /**
+     * Emitted when the mouse "stroke," is finished, and it's time to create the appropriate object
+     */
     readonly onCommit = new EventEmitter<(createObj: NewObjectCallback, points: Vector[])=>void>();
 
     constructor(env: Environment, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
@@ -112,6 +118,9 @@ export default class Mouse {
         onResize.addListener(this.resize.bind(this));
     }
 
+    /**
+     * Returns the current tool
+     */
     get tool(){return this._curTool}
 
     private _setupRenderPass(env: Environment): RenderPass {
@@ -227,6 +236,9 @@ export default class Mouse {
         this._createObjCallback = tool.newObj ?? null;
     }
 
+    /**
+     * Resizes the Mouse's rendering context to provided dimensions
+     */
     resize(dimensions: ConstVector): void {
         const scaleMatrix = new Mat3([
             1 / dimensions.x, 0, 0,
@@ -238,6 +250,9 @@ export default class Mouse {
         this._renderPass.uniforms!.matrixUniform.set(false, scaleMatrix.data);
     }
 
+    /**
+     * Renders the Mouse's preview path to the screen
+     */
     render(): void {
         if (this._renderLength == 0) return;
 

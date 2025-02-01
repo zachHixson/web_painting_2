@@ -5,6 +5,9 @@ import { ConstVector, Vector } from "./lib/Vector";
 import Renderer, { PrecompileCallback } from "./Renderer";
 import Object_Base from "./objects/Object_Base";
 
+/**
+ * Manages objects and world state
+ */
 export default class Environment {
     static readonly SIZE = 8192;
 
@@ -43,6 +46,9 @@ export default class Environment {
         this._lastFrameTime = performance.now();
     }
 
+    /**
+     * Gets a WebGL shader program from the renderer if already compiled, or compiles that program if not
+     */
     getProgram(id: symbol, compileCallback: PrecompileCallback): WebGLProgram {
         const program = this._renderer.getProgram(id);
 
@@ -53,6 +59,9 @@ export default class Environment {
         return program;
     }
 
+    /**
+     * Resizes the canvas, then emits the "onResize," event
+     */
     resize(): void {
         const canvas = this.ctx.canvas as HTMLCanvasElement;
         const parentBounds = canvas.parentElement!.getBoundingClientRect();
@@ -67,6 +76,9 @@ export default class Environment {
         this.onResize.emit(new Vector(canvas.width, canvas.height));
     }
 
+    /**
+     * Updates world state and all child objects
+     */
     update(): void {
         const now = performance.now();
         const delta = (now - this._lastFrameTime) / 1000;
@@ -78,6 +90,9 @@ export default class Environment {
         this._lastFrameTime = now;
     }
 
+    /**
+     * Renders all child objects and mouse preview path
+     */
     render(): void {
         this._renderer.render(this._objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
         this.mouse.render();

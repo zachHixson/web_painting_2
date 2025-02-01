@@ -11,6 +11,9 @@ import * as Util from '../lib/Util';
 
 const RENDER_PROGRAM_ID = Symbol('DIRT');
 
+/**
+ * A class for creating dirt strokes
+ */
 export default class Dirt extends Object_Base {
     static precompileShader(gl: WebGL2RenderingContext) {
         const vs = WGL.createShader(gl, gl.VERTEX_SHADER, dirtVSource);

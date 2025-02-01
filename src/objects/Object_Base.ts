@@ -5,6 +5,9 @@ import { ConstVector } from "../lib/Vector";
 import * as WGL from '../lib/wgl';
 import * as Util from '../lib/Util';
 
+/**
+ * A base class for all child objects of the Environment class
+ */
 export default abstract class Object_Base {
     protected _env: Environment;
 
@@ -22,6 +25,9 @@ export default abstract class Object_Base {
         return tex;
     }
 
+    /**
+     * Calculates the world space bounds of the object
+     */
     protected static _calcBounds(points: ConstVector[], padding: number = 0): Util.Rect {
         const firstPoint = points[0];
         const min = firstPoint.clone();
@@ -40,6 +46,9 @@ export default abstract class Object_Base {
         return {min, max};
     }
 
+    /**
+     * Interpolate back animation
+     */
     protected static _interpBack(val: number): number {
         const c1 = 3;
         const c3 = c1 + 1;
@@ -48,6 +57,9 @@ export default abstract class Object_Base {
         return 1 + c3 * Math.pow(vm1, 3) + c1 * Math.pow(vm1, 2);
     }
 
+    /**
+     * Emits when it's time for the object to be removed
+     */
     onExpire = new EventEmitter<(args: {obj: Object_Base})=>void>();
 
     constructor(_points: ConstVector[], env: Environment){
