@@ -1,5 +1,4 @@
 import './style.css';
-import { compileShaders } from './ShaderPrecompiler';
 import Mouse from './Mouse';
 import type { NewObjectCallback } from './Mouse';
 import { MOUSE_TOOLS } from './Mouse';
@@ -9,12 +8,14 @@ import placeHolderIcon from '/vite.svg';
 import btnTemplate from './button.html?raw';
 import Environment from './Environment';
 import Dirt from './objects/Dirt';
+import { PrecompileCallback } from './Renderer';
 
 //create a list of objects that will be used to create the visual tool buttons
 const tools: {
     type: MOUSE_TOOLS,
     icon: string,
     newObj?: NewObjectCallback,
+    precompileShader?: (gl: WebGL2RenderingContext) => {id: symbol, program: WebGLProgram},
 }[] = [
     {
         type: MOUSE_TOOLS.MOVE,
@@ -24,6 +25,7 @@ const tools: {
         type: MOUSE_TOOLS.DIRT,
         icon: placeHolderIcon,
         newObj: Dirt,
+        precompileShader: Dirt.precompileShader,
     },
     {
         type: MOUSE_TOOLS.RAIN,
@@ -48,14 +50,18 @@ window.onload = ()=>{
     ctx.enable(ctx.BLEND);
     ctx.blendFuncSeparate(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA, ctx.ONE, ctx.ONE_MINUS_SRC_ALPHA);
 
-    compileShaders(ctx).then(()=>initProgram(ctx));
+    initProgram(ctx);
 }
 
 /**
  * Used to start the program
  */
 function initProgram(ctx: WebGL2RenderingContext){
-    const env = new Environment(ctx);
+    const precompileCallbacks: PrecompileCallback[] = [
+        ...tools.map(t => t.precompileShader).filter(t => !!t),
+        Mouse.precompileShader,
+    ];
+    const env = new Environment(ctx, precompileCallbacks);
     env.mouse.setTool(tools[1]);
     createButtons(env.mouse);
 

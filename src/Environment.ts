@@ -2,7 +2,7 @@ import Mouse from "./Mouse";
 import Camera from "./Camera";
 import EventEmitter from "./lib/EventEmitter";
 import { ConstVector, Vector } from "./lib/Vector";
-import Renderer from "./Renderer";
+import Renderer, { PrecompileCallback } from "./Renderer";
 import Object_Base from "./objects/Object_Base";
 
 export default class Environment {
@@ -17,11 +17,16 @@ export default class Environment {
 
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
 
-    constructor(ctx: WebGL2RenderingContext){
+    constructor(ctx: WebGL2RenderingContext, precompileCallbacks?: PrecompileCallback[]){
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
-        this.mouse = new Mouse(this.ctx.canvas as HTMLCanvasElement, this.camera, this.onResize);
-        this._renderer = new Renderer(this.onResize);
+        this._renderer = new Renderer(this.ctx, this.onResize);
+
+        if (precompileCallbacks) {
+            this._renderer.precompilePrograms(precompileCallbacks);
+        }
+
+        this.mouse = new Mouse(this, this.camera, this.onResize);
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
@@ -36,6 +41,16 @@ export default class Environment {
         });
 
         this._lastFrameTime = performance.now();
+    }
+
+    getProgram(id: symbol, compileCallback: PrecompileCallback): WebGLProgram {
+        const program = this._renderer.getProgram(id);
+
+        if (!program) {
+            return this._renderer.compileProgram(compileCallback).program;
+        }
+
+        return program;
     }
 
     resize(): void {

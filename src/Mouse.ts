@@ -4,10 +4,13 @@ import Camera from "./Camera";
 import * as WGL from './lib/wgl';
 import vertSource from './shaders/mouseVertex.glsl?raw';
 import fragSource from './shaders/mouseFragment.glsl?raw';
-import { registerPrecompileCallback } from "./ShaderPrecompiler";
 import * as Bezier from './lib/Bezier';
 import EventEmitter from "./lib/EventEmitter";
 import Object_Base from "./objects/Object_Base";
+import RenderPass from "./lib/RenderPass";
+import Environment from "./Environment";
+
+const RENDER_PROGRAM_ID = Symbol('MOUSE');
 
 export enum MOUSE_TOOLS {
     MOVE = 1,
@@ -20,45 +23,13 @@ export enum MOUSE_TOOLS {
 export type NewObjectCallback = new (...args: ConstructorParameters<typeof Object_Base>)=>Object_Base;
 
 export default class Mouse {
-    private static _ctx: WebGL2RenderingContext;
-    private static _program: WebGLProgram;
-    private static _vao: WebGLVertexArrayObject;
-    private static _planeAttrib: WGL.Attribute;
-    private static _xfrmAttrib: WGL.Attribute;
-    private static _endPointAttrib: WGL.Attribute;
-    private static _controlPointAttrib: WGL.Attribute;
-    private static _matrixUniform: WGL.Uniform;
+    static precompileShader(gl: WebGL2RenderingContext): { id: symbol, program: WebGLProgram } {
+        const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
+        const fs = WGL.createShader(gl, gl.FRAGMENT_SHADER, fragSource);
+        const program = WGL.createProgram(gl, vs, fs);
 
-    static _shaderInit = (()=>{
-        registerPrecompileCallback(gl => {
-            const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
-            const fs = WGL.createShader(gl, gl.FRAGMENT_SHADER, fragSource);
-            const program = WGL.createProgram(gl, vs, fs);
-            const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
-            
-            gl.bindVertexArray(vao);
-
-            const planeGeo = WGL.createPlaneGeo().map(i => (i + 1) / 2);
-            const planeGeoAttrib = new WGL.Attribute(gl, program, 'a_planeGeo');
-
-            Mouse._ctx = gl;
-            Mouse._program = program;
-            Mouse._vao = vao;
-            Mouse._planeAttrib = planeGeoAttrib;
-            Mouse._xfrmAttrib = new WGL.Attribute(gl, program, 'a_xfrm');
-            Mouse._endPointAttrib = new WGL.Attribute(gl, program, 'a_endPoints');
-            Mouse._controlPointAttrib = new WGL.Attribute(gl, program, 'a_controlPoints');
-            Mouse._matrixUniform = new WGL.Uniform(gl, program, 'u_viewMatrix', WGL.Uniform_Types.MAT3);
-
-            planeGeoAttrib.set(new Float32Array(planeGeo), 2, gl.FLOAT);
-            Mouse._xfrmAttrib.setDivisor(1);
-            Mouse._endPointAttrib.setDivisor(1);
-            Mouse._controlPointAttrib.setDivisor(1);
-            Mouse._matrixUniform.set(false, new Mat3().data);
-
-            return true;
-        });
-    })();
+        return { id: RENDER_PROGRAM_ID, program };
+    }
 
     private readonly _camera: Camera;
     private _curTool: MOUSE_TOOLS = MOUSE_TOOLS.NONE;
@@ -69,11 +40,14 @@ export default class Mouse {
     private _brushPoints: Vector[] = [];
     private _splinePoints: Vector[] = [];
     private _renderLength: number = 0;
+    private _renderPass: RenderPass;
 
     readonly onCommit = new EventEmitter<(createObj: NewObjectCallback, points: Vector[])=>void>();
 
-    constructor(canvas: HTMLCanvasElement, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
+    constructor(env: Environment, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
+        const canvas = env.ctx.canvas as HTMLCanvasElement;
         this._camera = camera;
+        this._renderPass = this._setupRenderPass(env);
 
         canvas.addEventListener('mousemove', e => {
             this._lastPos.copy(this._pos);
@@ -140,6 +114,55 @@ export default class Mouse {
 
     get tool(){return this._curTool}
 
+    private _setupRenderPass(env: Environment): RenderPass {
+        const gl = env.ctx;
+        const vao = WGL.nullError(env.ctx.createVertexArray(), new Error('Could not create vertex array object.'));
+        const program = env.getProgram(RENDER_PROGRAM_ID, Mouse.precompileShader);
+
+        if (!program) {
+            throw new Error(`Could not find program with ID: ${String(RENDER_PROGRAM_ID)} `);
+        }
+
+        gl.bindVertexArray(vao);
+        gl.useProgram(program);
+
+        return new RenderPass({
+            gl,
+            vao,
+            program,
+            uniforms: {
+                matrixUniform: (()=>{
+                    const uniform = new WGL.Uniform(gl, program, 'u_viewMatrix', WGL.Uniform_Types.MAT3);
+                    uniform.set(false, new Mat3().data);
+                    return uniform;
+                })(),
+            },
+            attributes: {
+                planeGeoAttrib: (()=>{
+                    const planeGeo = WGL.createPlaneGeo().map(i => (i + 1) / 2);
+                    const attrib = new WGL.Attribute(gl, program, 'a_planeGeo');
+                    attrib.set(new Float32Array(planeGeo), 2, gl.FLOAT);
+                    return attrib;
+                })(),
+                xfrmAttrib: (()=>{
+                    const attrib = new WGL.Attribute(gl, program, 'a_xfrm');
+                    attrib.setDivisor(1);
+                    return attrib;
+                })(),
+                endPointAttrib: (()=>{
+                    const attrib = new WGL.Attribute(gl, program, 'a_endPoints');
+                    attrib.setDivisor(1);
+                    return attrib;
+                })(),
+                controlPointAttrib: (()=>{
+                    const attrib = new WGL.Attribute(gl, program, 'a_controlPoints');
+                    attrib.setDivisor(1);
+                    return attrib;
+                })(),
+            },
+        });
+    }
+
     private _recalcGeo(): void {
         const spline = Bezier.splineFromPoints(this._brushPoints);
         const bounds = new Array<ReturnType<typeof Bezier.boundsFromCurve>>(this._brushPoints.length - 1);
@@ -185,10 +208,10 @@ export default class Mouse {
         }
 
         //Set output buffers
-        Mouse._ctx.bindVertexArray(Mouse._vao);
-        Mouse._xfrmAttrib.set(new Float32Array(xywhList), 4, Mouse._ctx.FLOAT);
-        Mouse._endPointAttrib.set(new Float32Array(endPoints), 4, Mouse._ctx.FLOAT);
-        Mouse._controlPointAttrib.set(new Float32Array(controlPoints), 4, Mouse._ctx.FLOAT);
+        this._renderPass.gl.bindVertexArray(this._renderPass.vao);
+        this._renderPass.attributes!.xfrmAttrib.set(new Float32Array(xywhList), 4, this._renderPass.gl.FLOAT);
+        this._renderPass.attributes!.endPointAttrib.set(new Float32Array(endPoints), 4, this._renderPass.gl.FLOAT);
+        this._renderPass.attributes!.controlPointAttrib.set(new Float32Array(controlPoints), 4, this._renderPass.gl.FLOAT);
         this._splinePoints = spline;
         this._renderLength = bounds.length;
     }
@@ -211,33 +234,15 @@ export default class Mouse {
             0, 0, 1
         ]);
 
-        Mouse._ctx.useProgram(Mouse._program);
-        Mouse._matrixUniform.set(false, scaleMatrix.data);
+        this._renderPass.gl.useProgram(this._renderPass.program);
+        this._renderPass.uniforms!.matrixUniform.set(false, scaleMatrix.data);
     }
 
     render(): void {
         if (this._renderLength == 0) return;
 
-        const gl = Mouse._ctx;
-
-        gl.useProgram(Mouse._program);
-        gl.bindVertexArray(Mouse._vao);
-
-        Mouse._planeAttrib.enable();
-        Mouse._xfrmAttrib.enable();
-        Mouse._endPointAttrib.enable();
-        Mouse._controlPointAttrib.enable();
-
-        gl.drawArraysInstanced(
-            gl.TRIANGLES,
-            0,
-            6,
-            this._renderLength
-        );
-
-        Mouse._planeAttrib.disable();
-        Mouse._xfrmAttrib.disable();
-        Mouse._endPointAttrib.disable();
-        Mouse._controlPointAttrib.disable();
+        this._renderPass.enable();
+        this._renderPass.renderInstanced(this._renderLength);
+        this._renderPass.disable();
     }
 }

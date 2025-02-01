@@ -76,6 +76,10 @@ export class Uniform {
         this._name = name;
         this._type = type;
         this._loc = this._gl.getUniformLocation(program, this._name)!;
+
+        if (!this._loc){
+            console.warn(`WARNING: Could not find uniform with name '${name}'`);
+        }
     }
 
     set(...args: any[]): void {
