@@ -3,6 +3,10 @@ import Camera from "./Camera";
 import EventEmitter from "./lib/EventEmitter";
 import { ConstVector, Vector } from "./lib/Vector";
 import Renderer, { PrecompileCallback } from "./Renderer";
+import * as WGL from "./lib/wgl";
+import RenderPass from "./lib/RenderPass";
+import worldVSource from './shaders/worldVertex.glsl?raw';
+import worldFSource from './shaders/worldFragment.glsl?raw';
 import Object_Base from "./objects/Object_Base";
 
 /**
@@ -11,6 +15,8 @@ import Object_Base from "./objects/Object_Base";
 export default class Environment {
     static readonly SIZE = 8192;
 
+    //Properties
+    private readonly _renderPass: RenderPass;
     private readonly _renderer: Renderer;
     private readonly _objectList: Object_Base[] = [];
     private _lastFrameTime = 0;
@@ -18,11 +24,16 @@ export default class Environment {
     readonly camera: Camera;
     readonly mouse: Mouse;
 
+    //Compute data buffers
+    readonly dirtBuffer: WebGLTexture;
+
+    //Events
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
 
     constructor(ctx: WebGL2RenderingContext, precompileCallbacks?: PrecompileCallback[]){
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
+        this._renderPass = this._setupRenderPass();
         this._renderer = new Renderer(this.ctx, this.onResize);
 
         if (precompileCallbacks) {
@@ -30,6 +41,8 @@ export default class Environment {
         }
 
         this.mouse = new Mouse(this, this.camera, this.onResize);
+
+        this.dirtBuffer = new WGL.Render_Texture(this.ctx, 512, 512, false);
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
@@ -44,6 +57,36 @@ export default class Environment {
         });
 
         this._lastFrameTime = performance.now();
+    }
+
+    private _setupRenderPass(): RenderPass {
+        const gl = this.ctx;
+        const modifiedFSrc = worldFSource.replace('${WORLD_SIZE}', Environment.SIZE.toString());
+        const worldVS = WGL.createShader(gl, gl.VERTEX_SHADER, worldVSource);
+        const worldFS = WGL.createShader(gl, gl.FRAGMENT_SHADER, modifiedFSrc);
+        const vao = WGL.nullError(gl.createVertexArray(), new Error('Error creating vertex array object'));
+        const program = WGL.createProgram(gl, worldVS, worldFS);
+
+        gl.bindVertexArray(vao);
+        gl.useProgram(program);
+
+        const renderPass = new RenderPass({
+            gl,
+            vao,
+            program,
+            uniforms: {
+                viewMat: new WGL.Uniform(gl, program, 'u_viewMat', WGL.Uniform_Types.MAT3),
+            },
+            attributes: {
+                positionAttr: (()=>{
+                    const attr = new WGL.Attribute(gl, program, 'a_position');
+                    attr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
+                    return attr;
+                })(),
+            }
+        });
+
+        return renderPass;
     }
 
     /**
@@ -94,6 +137,11 @@ export default class Environment {
      * Renders all child objects and mouse preview path
      */
     render(): void {
+        this._renderPass.enable();
+        this._renderPass.uniforms!.viewMat.set(false, this.camera.getInvMatrix().data);
+        this.ctx.drawArrays(this.ctx.TRIANGLES, 0, 6);
+        this._renderPass.disable();
+
         this._renderer.render(this._objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
         this.mouse.render();
     }
