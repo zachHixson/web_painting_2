@@ -17,8 +17,7 @@ void main(){
     v_uv = (a_planeGeo + 1.0) / 2.0;
     v_randSeed = random2D(a_pos) * 13.1235;
 
-    float scale = 50.0 * u_backAnim;
-    vec2 pos = (a_planeGeo * scale) + a_pos;
+    vec2 pos = (a_planeGeo * 50.0 * u_backAnim) + a_pos;
     pos = (vec3(pos, 1.0) * u_viewMat).xy;
 
     gl_Position = vec4(vec3(pos, 0.0), 1.0);

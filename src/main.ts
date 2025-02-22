@@ -25,7 +25,7 @@ const tools: {
         type: MOUSE_TOOLS.DIRT,
         icon: placeHolderIcon,
         newObj: Dirt,
-        precompileShader: Dirt.precompileShader,
+        precompileShader: Dirt.precompRenderShader,
     },
     {
         type: MOUSE_TOOLS.RAIN,
@@ -49,6 +49,8 @@ window.onload = ()=>{
     ctx.clearColor(0, 0, 0, 0);
     ctx.enable(ctx.BLEND);
     ctx.blendFuncSeparate(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA, ctx.ONE, ctx.ONE_MINUS_SRC_ALPHA);
+
+    createTexDebugWindow(ctx);
 
     initProgram(ctx);
 }
@@ -97,6 +99,64 @@ function createButtons(mouse: Mouse): void {
 
         toolbar.appendChild(btn);
     }
+}
+
+/**
+ * Creates a small window for debugging textures
+ */
+function createTexDebugWindow(gl: WebGL2RenderingContext): void {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const win = window as any;
+    const fb = gl.createFramebuffer();
+    let debugTex: WebGLTexture | null = null;
+    let imgData = new ImageData(1, 1);
+
+    canvas.style = `
+        border: 1px solid black;
+        position: absolute;
+        right: 0px;
+    `;
+
+    //create global functions
+    win.setDebugTex = (tex: WebGLTexture, w: number, h: number) => {
+        debugTex = tex;
+        imgData = new ImageData(w, h);
+        canvas.width = imgData.width;
+        canvas.height = imgData.height;
+
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, debugTex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    };
+
+    win.updateDebugTex = ()=>{
+        if (!debugTex) return;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.readPixels(0, 0, imgData.width, imgData.height, gl.RGBA, gl.UNSIGNED_BYTE, imgData.data);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        //check if empty
+        // let curArr: any = [];
+
+        // for (let i = 0; i < imgData.data.length; i++){
+        //     if (imgData.data[i] != 0){
+        //         curArr.push(imgData.data[i]);
+        //     }
+        //     else if (curArr.length > 0){
+        //         console.log(curArr);
+        //         curArr = [];
+        //     }
+        // }
+
+        ctx.putImageData(imgData, 0, 0);
+    };
+
+    document.body.append(canvas);
 }
 
 /**

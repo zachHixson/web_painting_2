@@ -5,6 +5,7 @@ import { ConstVector, Vector } from "./lib/Vector";
 import Renderer, { PrecompileCallback } from "./Renderer";
 import * as WGL from "./lib/wgl";
 import RenderPass from "./lib/RenderPass";
+import { Compute_Texture } from "./lib/ComputeTexture";
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
 import Object_Base from "./objects/Object_Base";
@@ -14,6 +15,7 @@ import Object_Base from "./objects/Object_Base";
  */
 export default class Environment {
     static readonly SIZE = 8192;
+    static readonly SIZE_INV = 1 / Environment.SIZE;
 
     //Properties
     private readonly _renderPass: RenderPass;
@@ -25,7 +27,7 @@ export default class Environment {
     readonly mouse: Mouse;
 
     //Compute data buffers
-    readonly dirtBuffer: WebGLTexture;
+    readonly dirtBuffer: Compute_Texture;
 
     //Events
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
@@ -33,6 +35,7 @@ export default class Environment {
     constructor(ctx: WebGL2RenderingContext, precompileCallbacks?: PrecompileCallback[]){
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
+        this.dirtBuffer = new Compute_Texture(this.ctx, 512, this.ctx.R8, this.ctx.RED, this.ctx.UNSIGNED_BYTE);
         this._renderPass = this._setupRenderPass();
         this._renderer = new Renderer(this.ctx, this.onResize);
 
@@ -41,8 +44,6 @@ export default class Environment {
         }
 
         this.mouse = new Mouse(this, this.camera, this.onResize);
-
-        this.dirtBuffer = new WGL.Render_Texture(this.ctx, 512, 512, false);
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
@@ -57,6 +58,9 @@ export default class Environment {
         });
 
         this._lastFrameTime = performance.now();
+
+        //!! debug code, remove
+        (window as any).setDebugTex(this.dirtBuffer.texture, 512, 512);
     }
 
     private _setupRenderPass(): RenderPass {
@@ -83,7 +87,7 @@ export default class Environment {
                     attr.set(new Float32Array(WGL.createPlaneGeo()), 2, gl.FLOAT);
                     return attr;
                 })(),
-            }
+            },
         });
 
         return renderPass;
