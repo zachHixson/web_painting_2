@@ -3,8 +3,6 @@ precision highp float;
 
 const vec3 DIRT_COL = vec3(0.8, 0.54, 0.35);
 
-uniform float u_decay;
-
 in vec2 v_uv;
 in float v_randSeed;
 

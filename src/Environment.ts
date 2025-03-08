@@ -2,13 +2,17 @@ import Mouse from "./Mouse";
 import Camera from "./Camera";
 import EventEmitter from "./lib/EventEmitter";
 import { ConstVector, Vector } from "./lib/Vector";
-import Renderer, { PrecompileCallback } from "./Renderer";
+import Renderer from "./Renderer";
 import * as WGL from "./lib/wgl";
 import RenderPass from "./lib/RenderPass";
-import { Compute_Texture } from "./lib/ComputeTexture";
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
-import Object_Base from "./objects/Object_Base";
+import { TOOLS } from "./Tools/Tools_Enum";
+import Tool_Base from "./Tools/Tool_Base";
+import Move from "./Tools/Move";
+import Dirt from "./Tools/Dirt";
+
+import placeHolderIcon from '/vite.svg';
 
 /**
  * Manages objects and world state
@@ -20,48 +24,49 @@ export default class Environment {
     //Properties
     private readonly _renderPass: RenderPass;
     private readonly _renderer: Renderer;
-    private readonly _objectList: Object_Base[] = [];
     private _lastFrameTime = 0;
+    private _curTool: Tool_Base;
     readonly ctx: WebGL2RenderingContext;
     readonly camera: Camera;
     readonly mouse: Mouse;
-
-    //Compute data buffers
-    readonly dirtBuffer: Compute_Texture;
+    readonly tools: Tool_Base[];
 
     //Events
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
+    readonly onToolSet = new EventEmitter<(newTool: TOOLS)=>void>();
 
-    constructor(ctx: WebGL2RenderingContext, precompileCallbacks?: PrecompileCallback[]){
+    constructor(ctx: WebGL2RenderingContext){
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
-        this.dirtBuffer = new Compute_Texture(this.ctx, 512, this.ctx.R8, this.ctx.RED, this.ctx.UNSIGNED_BYTE);
         this._renderPass = this._setupRenderPass();
         this._renderer = new Renderer(this.ctx, this.onResize);
+        this.tools = [
+            new Move(TOOLS.MOVE, placeHolderIcon, this),
+            new Dirt(TOOLS.DIRT, placeHolderIcon, this),
+        ];
+        this._curTool = this.tools[0];
 
-        if (precompileCallbacks) {
-            this._renderer.precompilePrograms(precompileCallbacks);
-        }
-
-        this.mouse = new Mouse(this, this.camera, this.onResize);
+        this.mouse = new Mouse(this, this.onResize);
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
 
-        this.mouse.onCommit.addListener((createObj, points) => {
-            const obj = new createObj(points, this);
-            obj.onExpire.addListener(()=>{
-                const idx = this._objectList.findIndex(i => i == obj);
-                this._objectList.splice(idx, 1);
-            });
-            this._objectList.push(obj);
+        this.mouse.onMouseMove.addListener((_, delta, middleMouse)=>{
+            if (!middleMouse) return;
+            this.camera.slide(delta);
+        });
+
+        this.mouse.onMouseWheel.addListener(deltaY => {
+            this.camera.zoom(-deltaY / 200);
         });
 
         this._lastFrameTime = performance.now();
 
         //!! debug code, remove
-        (window as any).setDebugTex(this.dirtBuffer.texture, 512, 512);
+        //(window as any).setDebugTex(this.dirtBuffer.texture, 512, 512);
     }
+
+    get curTool() {return this._curTool}
 
     private _setupRenderPass(): RenderPass {
         const gl = this.ctx;
@@ -93,17 +98,23 @@ export default class Environment {
         return renderPass;
     }
 
-    /**
-     * Gets a WebGL shader program from the renderer if already compiled, or compiles that program if not
-     */
-    getProgram(id: symbol, compileCallback: PrecompileCallback): WebGLProgram {
-        const program = this._renderer.getProgram(id);
+    setTool(toolId: TOOLS): void {
+        const newTool = this.tools.find(t => t.id == toolId);
 
-        if (!program) {
-            return this._renderer.compileProgram(compileCallback).program;
+        if (!newTool) {
+            throw new Error('Unidentified tool ID ' + toolId);
         }
 
-        return program;
+        //remove old event listeners
+        this.mouse.onCommit.removeListener(this._curTool.mouseCommitHandler);
+        this.mouse.onMouseMove.removeListener(this._curTool.mouseMoveHandler);
+
+        this._curTool = newTool;
+
+        this.mouse.onCommit.addListener(this._curTool.mouseCommitHandler);
+        this.mouse.onMouseMove.addListener(this._curTool.mouseMoveHandler);
+
+        this.onToolSet.emit(this._curTool.id);
     }
 
     /**
@@ -130,8 +141,8 @@ export default class Environment {
         const now = performance.now();
         const delta = (now - this._lastFrameTime) / 1000;
 
-        for (let i = 0; i < this._objectList.length; i++){
-            this._objectList[i].update(delta);
+        for (let i = 0; i < this.tools.length; i++){
+            this.tools[i].update(delta);
         }
 
         this._lastFrameTime = now;
@@ -141,12 +152,14 @@ export default class Environment {
      * Renders all child objects and mouse preview path
      */
     render(): void {
+        //draw environment background
         this._renderPass.enable();
         this._renderPass.uniforms!.viewMat.set(false, this.camera.getInvMatrix().data);
         this.ctx.drawArrays(this.ctx.TRIANGLES, 0, 6);
         this._renderPass.disable();
 
-        this._renderer.render(this._objectList, this.camera.getMatrix(), this.camera.getInvMatrix());
+        //
+        this._renderer.render(this.tools, this.camera.getMatrix(), this.camera.getInvMatrix());
         this.mouse.render();
     }
 }

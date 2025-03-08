@@ -1,41 +1,9 @@
 import './style.css';
-import Mouse from './Mouse';
-import type { NewObjectCallback } from './Mouse';
-import { MOUSE_TOOLS } from './Mouse';
+import { TOOLS } from './Tools/Tools_Enum';
 import * as WGL from './lib/wgl';
 
-import placeHolderIcon from '/vite.svg';
 import btnTemplate from './button.html?raw';
 import Environment from './Environment';
-import Dirt from './objects/Dirt';
-import { PrecompileCallback } from './Renderer';
-
-//create a list of objects that will be used to create the visual tool buttons
-const tools: {
-    type: MOUSE_TOOLS,
-    icon: string,
-    newObj?: NewObjectCallback,
-    precompileShader?: (gl: WebGL2RenderingContext) => {id: symbol, program: WebGLProgram},
-}[] = [
-    {
-        type: MOUSE_TOOLS.MOVE,
-        icon: placeHolderIcon,
-    },
-    {
-        type: MOUSE_TOOLS.DIRT,
-        icon: placeHolderIcon,
-        newObj: Dirt,
-        precompileShader: Dirt.precompRenderShader,
-    },
-    {
-        type: MOUSE_TOOLS.RAIN,
-        icon: placeHolderIcon,
-    },
-    {
-        type: MOUSE_TOOLS.WIND,
-        icon: placeHolderIcon,
-    },
-];
 
 window.onload = ()=>{
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -59,13 +27,9 @@ window.onload = ()=>{
  * Used to start the program
  */
 function initProgram(ctx: WebGL2RenderingContext){
-    const precompileCallbacks: PrecompileCallback[] = [
-        ...tools.map(t => t.precompileShader).filter(t => !!t),
-        Mouse.precompileShader,
-    ];
-    const env = new Environment(ctx, precompileCallbacks);
-    env.mouse.setTool(tools[1]);
-    createButtons(env.mouse);
+    const env = new Environment(ctx);
+    env.setTool(TOOLS.DIRT);
+    createButtons(env);
 
     startUpdate(env);
 }
@@ -73,12 +37,12 @@ function initProgram(ctx: WebGL2RenderingContext){
 /**
  * Dynamically creates HTML buttons for each tool
  */
-function createButtons(mouse: Mouse): void {
+function createButtons(env: Environment): void {
     const toolbar = document.getElementById('toolbar') as HTMLDivElement;
     const el = document.createElement('div');
 
-    for (let i = 0; i < tools.length; i++){
-        const parsedTemplate = btnTemplate.replace('[src]', tools[i].icon);
+    for (let i = 0; i < env.tools.length; i++){
+        const parsedTemplate = btnTemplate.replace('[src]', env.tools[i].icon);
         el.innerHTML = parsedTemplate;
         const btn = el.firstChild as HTMLButtonElement;
         btn.addEventListener('click', ()=>{
@@ -90,10 +54,10 @@ function createButtons(mouse: Mouse): void {
 
             //Add class to current button and set tool
             btn.classList.add('tool-selected');
-            mouse.setTool(tools[i]);
+            env.setTool(env.tools[i].id);
         });
 
-        if (mouse.tool == tools[i].type){
+        if (env.curTool.id == env.tools[i].id){
             btn.classList.add('tool-selected');
         }
 
@@ -156,7 +120,7 @@ function createTexDebugWindow(gl: WebGL2RenderingContext): void {
         ctx.putImageData(imgData, 0, 0);
     };
 
-    document.body.append(canvas);
+    //document.body.append(canvas);
 }
 
 /**

@@ -1,73 +1,54 @@
 import { ConstVector, Vector } from "./lib/Vector";
 import { Mat3 } from "./lib/Mat3";
-import Camera from "./Camera";
 import * as WGL from './lib/wgl';
 import vertSource from './shaders/mouseVertex.glsl?raw';
 import fragSource from './shaders/mouseFragment.glsl?raw';
 import * as Bezier from './lib/Bezier';
 import EventEmitter from "./lib/EventEmitter";
-import Object_Base from "./objects/Object_Base";
 import RenderPass from "./lib/RenderPass";
 import Environment from "./Environment";
-
-const RENDER_PROGRAM_ID = Symbol('MOUSE');
-
-export enum MOUSE_TOOLS {
-    MOVE = 1,
-    DIRT,
-    RAIN,
-    WIND,
-    NONE,
-}
-
-export type NewObjectCallback = new (...args: ConstructorParameters<typeof Object_Base>)=>Object_Base;
 
 /**
  * A class which handles the mouse calculations and drawing
  */
 export default class Mouse {
-    static precompileShader(gl: WebGL2RenderingContext): { id: symbol, program: WebGLProgram } {
+    static compileShader(gl: WebGL2RenderingContext): WebGLProgram {
         const vs = WGL.createShader(gl, gl.VERTEX_SHADER, vertSource);
         const fs = WGL.createShader(gl, gl.FRAGMENT_SHADER, fragSource);
         const program = WGL.createProgram(gl, vs, fs);
 
-        return { id: RENDER_PROGRAM_ID, program };
+        return program;
     }
 
-    private readonly _camera: Camera;
-    private _curTool: MOUSE_TOOLS = MOUSE_TOOLS.NONE;
     private _lastPos: Vector = new Vector();
     private _pos: Vector = new Vector();
     private _down: boolean = false;
-    private _createObjCallback: (NewObjectCallback) | null = null;
     private _brushPoints: Vector[] = [];
     private _splinePoints: Vector[] = [];
     private _renderLength: number = 0;
     private _renderPass: RenderPass;
 
-    /**
-     * Emitted when the mouse "stroke," is finished, and it's time to create the appropriate object
-     */
-    readonly onCommit = new EventEmitter<(createObj: NewObjectCallback, points: Vector[])=>void>();
+    readonly onCommit = new EventEmitter<(points: Vector[])=>void>();
+    readonly onMouseMove = new EventEmitter<(isDown: boolean, delta: ConstVector, middleMouse: boolean)=>void>();
+    readonly onMouseWheel = new EventEmitter<(deltaY: number)=>void>();
 
-    constructor(env: Environment, camera: Camera, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
+    enableDrawing: boolean = true;
+
+    constructor(env: Environment, onResize: EventEmitter<(dimensions: ConstVector)=>void>){
         const canvas = env.ctx.canvas as HTMLCanvasElement;
-        this._camera = camera;
         this._renderPass = this._setupRenderPass(env);
 
         canvas.addEventListener('mousemove', e => {
             this._lastPos.copy(this._pos);
             this._pos.set(e.offsetX, e.offsetY);
-    
-            if ((this._down && this._curTool == MOUSE_TOOLS.MOVE) || e.buttons & 0b100){
-                const delta = this._pos.clone().subtract(this._lastPos).scale(2 / this._camera.getScale());
-                delta.x *= -1;
-                this._camera.slide(delta);
-                return;
-            }
 
-            if (this._down && this._curTool != MOUSE_TOOLS.MOVE){
-                const curScreenPos = new Vector(e.offsetX, this._camera.getDimensions().y - e.offsetY);
+            const delta = this._pos.clone().subtract(this._lastPos).scale(2 / env.camera.getScale());
+            delta.x *= -1;
+
+            this.onMouseMove.emit(this._down, delta, !!(e.buttons & 0b100));
+
+            if (this._down && this.enableDrawing){
+                const curScreenPos = new Vector(e.offsetX, env.camera.getDimensions().y - e.offsetY);
                 const lastPoint = this._brushPoints[this._brushPoints.length - 1];
                 const distCheck = curScreenPos.distanceTo(lastPoint) > 100;
                 const lengthCheck = this._brushPoints.length < 50;
@@ -81,10 +62,10 @@ export default class Mouse {
         canvas.addEventListener('mousedown', e => {
             this._down = !!(e.buttons & 0b001);
 
-            if (this._curTool == MOUSE_TOOLS.MOVE) return;
+            if (!this.enableDrawing) return;
 
             if (this._down){
-                this._brushPoints.push(new Vector(e.offsetX, this._camera.getDimensions().y - e.offsetY));
+                this._brushPoints.push(new Vector(e.offsetX, env.camera.getDimensions().y - e.offsetY));
             }
             else{
                 this._clearGeo();
@@ -95,42 +76,31 @@ export default class Mouse {
 
             if (this._down || this._brushPoints.length == 0) return;
 
-            //submit points to new object
-            if (this._createObjCallback){
-                const xposeMat = this._camera.getInvMatrix().clone().transpose();
-                for (let i = 0; i < this._splinePoints.length; i++){
-                    this._splinePoints[i]
-                        .divide(this._camera.getDimensions())
-                        .scale(2)
-                        .subtractScalar(1)
-                        .multiplyMat3(xposeMat);
-                }
+            const xposeMat = env.camera.getInvMatrix().clone().transpose();
 
-                this.onCommit.emit(this._createObjCallback, this._splinePoints);
+            for (let i = 0; i < this._splinePoints.length; i++){
+                this._splinePoints[i]
+                    .divide(env.camera.getDimensions())
+                    .scale(2)
+                    .subtractScalar(1)
+                    .multiplyMat3(xposeMat);
             }
+
+            this.onCommit.emit(this._splinePoints);
             
             this._clearGeo();
         });
         canvas.addEventListener('wheel', e => {
-            this._camera.zoom(-e.deltaY / 200);
+            this.onMouseWheel.emit(e.deltaY);
         });
 
         onResize.addListener(this.resize.bind(this));
     }
 
-    /**
-     * Returns the current tool
-     */
-    get tool(){return this._curTool}
-
     private _setupRenderPass(env: Environment): RenderPass {
         const gl = env.ctx;
-        const vao = WGL.nullError(env.ctx.createVertexArray(), new Error('Could not create vertex array object.'));
-        const program = env.getProgram(RENDER_PROGRAM_ID, Mouse.precompileShader);
-
-        if (!program) {
-            throw new Error(`Could not find program with ID: ${String(RENDER_PROGRAM_ID)} `);
-        }
+        const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
+        const program = Mouse.compileShader(gl);
 
         gl.bindVertexArray(vao);
         gl.useProgram(program);
@@ -229,11 +199,6 @@ export default class Mouse {
         this._brushPoints = [];
         this._splinePoints = [];
         this._renderLength = 0;
-    }
-
-    setTool(tool: {type: MOUSE_TOOLS, newObj?: NewObjectCallback}): void {
-        this._curTool = tool.type;
-        this._createObjCallback = tool.newObj ?? null;
     }
 
     /**
