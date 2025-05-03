@@ -9,6 +9,8 @@ import dirtVSource from '../shaders/dirtVertex.glsl?raw';
 import dirtFSource from '../shaders/dirtFragment.glsl?raw';
 import computeVertex from '../shaders/computeVertex.glsl?raw';
 import dirtUpdate from '../shaders/dirtUpdate.glsl?raw';
+import grassVSource from '../shaders/grassVertex.glsl?raw';
+import grassFSource from '../shaders/grassFragment.glsl?raw';
 import { Mat3 } from "../lib/Mat3";
 import * as Bezier from '../lib/Bezier';
 
@@ -18,8 +20,11 @@ export default class Dirt extends Tool_Base {
 
     private _dirtData: Compute_Texture_Swap;
     private _destBuffer: Int32Array;
-    private _renderPass: RenderPass;
-    private _updatePass: RenderPass;
+    private _dirtRenderPass: RenderPass;
+    private _dirtUpdatePass: RenderPass;
+    private _grassRenderPass: RenderPass;
+    private _grassUpdatePass: RenderPass;
+    private _time: number = 0;
 
     constructor(id: TOOLS, icon: string, env: Environment) {
         const emptyTex = new Int32Array(Dirt.TEX_SIZE * Dirt.TEX_SIZE * 4);
@@ -28,11 +33,13 @@ export default class Dirt extends Tool_Base {
 
         this._dirtData = new Compute_Texture_Swap(env.ctx, Dirt.TEX_SIZE, env.ctx.RGBA32I, env.ctx.RGBA_INTEGER, env.ctx.INT, emptyTex);
         this._destBuffer = new Int32Array(Dirt.TEX_SIZE * Dirt.TEX_SIZE * 4);
-        this._renderPass = this._getRenderPass();
-        this._updatePass = this._getUpdatePass();
+        this._dirtRenderPass = this._getDirtRenderPass();
+        this._dirtUpdatePass = this._getDirtUpdatePass();
+        this._grassRenderPass = this._getGrassRenderPass();
+        this._grassUpdatePass = this._getGrassUpdatePass();
     }
 
-    private _getRenderPass(): RenderPass {
+    private _getDirtRenderPass(): RenderPass {
         const gl = this._env.ctx;
         const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
         const program = Tool_Base.compileShader(gl, dirtVSource, dirtFSource);
@@ -66,7 +73,7 @@ export default class Dirt extends Tool_Base {
         return renderPass;
     }
 
-    private _getUpdatePass(): RenderPass {
+    private _getDirtUpdatePass(): RenderPass {
         const gl = this._env.ctx;
         const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
         const program = Tool_Base.compileShader(gl, computeVertex, dirtUpdate);
@@ -98,6 +105,55 @@ export default class Dirt extends Tool_Base {
         updatePass.uniforms!.dataTexWidth.set(this._dirtData.read.width);
 
         return updatePass;
+    }
+
+    private _getGrassRenderPass(): RenderPass {
+        const gl = this._env.ctx;
+        const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
+        const program = Tool_Base.compileShader(gl, grassVSource, grassFSource);
+
+        gl.bindVertexArray(vao);
+        gl.useProgram(program);
+
+        const renderPass = new RenderPass({
+            gl,
+            vao,
+            program,
+            uniforms: {
+                viewMat: new WGL.Uniform(gl, program, 'u_viewMat', WGL.Uniform_Types.MAT3),
+                dataTexWidth: new WGL.Uniform(gl, program, 'u_dataTexWidth', WGL.Uniform_Types.INT),
+                time: new WGL.Uniform(gl, program, 'u_time', WGL.Uniform_Types.FLOAT),
+            },
+            textures: {
+                dataTex: new WGL.Texture_Uniform(gl, program, 'u_dataTex', this._dirtData.read.texture),
+            },
+            attributes: {
+                planeGeo: (()=>{
+                    const planeGeo = WGL.createPlaneGeo();
+                    const attr = new WGL.Attribute(gl, program, 'a_planeGeo');
+                    attr.set(new Float32Array(planeGeo), 2, gl.FLOAT);
+                    return attr;
+                })(),
+            },
+        });
+
+        renderPass.uniforms!.dataTexWidth.set(this._dirtData.read.width);
+
+        return renderPass;
+    }
+
+    private _getGrassUpdatePass(): RenderPass {
+        const gl = this._env.ctx;
+        const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
+        const program = Tool_Base.compileShader(gl, grassVSource, grassFSource);
+
+        const renderPass = new RenderPass({
+            gl,
+            vao,
+            program,
+        });
+
+        return renderPass;
     }
 
     mouseCommitHandler = (points: ConstVector[]) => {
@@ -142,7 +198,7 @@ export default class Dirt extends Tool_Base {
 
     update(delta: number): void {
         const gl = this._env.ctx;
-        const fb = gl.createFramebuffer();
+        const fb = this._dirtData.write.framebuffer;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
         gl.framebufferTexture2D(
@@ -155,23 +211,32 @@ export default class Dirt extends Tool_Base {
 
         gl.viewport(0, 0, Dirt.TEX_SIZE, Dirt.TEX_SIZE);
 
-        this._updatePass.textures!.dataTex.texture = this._dirtData.read.texture;
+        this._dirtUpdatePass.textures!.dataTex.texture = this._dirtData.read.texture;
 
-        this._updatePass.enable();
-        this._updatePass.uniforms!.delta.set(delta);
-        this._updatePass.renderInstanced(1);
-        this._updatePass.disable();
+        this._dirtUpdatePass.enable();
+        this._dirtUpdatePass.uniforms!.delta.set(delta);
+        this._dirtUpdatePass.renderInstanced(1);
+        this._dirtUpdatePass.disable();
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
         this._dirtData.swap();
+        this._time += delta;
     }
 
     render(viewMat: Mat3): void {
-        this._renderPass.enable();
-        this._renderPass.uniforms!.viewMat.set(false, viewMat.data);
-        this._renderPass.renderInstanced(Dirt.TEX_SIZE_SQR);
-        this._renderPass.disable();
+        //render dirt
+        this._dirtRenderPass.enable();
+        this._dirtRenderPass.uniforms!.viewMat.set(false, viewMat.data);
+        this._dirtRenderPass.renderInstanced(Dirt.TEX_SIZE_SQR);
+        this._dirtRenderPass.disable();
+
+        //rendgrassRe_grassRenderPass
+        this._grassRenderPass.enable();
+        this._grassRenderPass.uniforms!.viewMat.set(false, viewMat.data);
+        this._grassRenderPass.uniforms!.time.set(this._time);
+        this._grassRenderPass.renderInstanced(Dirt.TEX_SIZE_SQR * 10);
+        this._grassRenderPass.disable();
     }
 }
