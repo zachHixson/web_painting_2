@@ -28,7 +28,7 @@ window.onload = ()=>{
  */
 function initProgram(ctx: WebGL2RenderingContext){
     const env = new Environment(ctx);
-    env.setTool(TOOLS.DIRT);
+    env.setTool(TOOLS.WIND);
     createButtons(env);
 
     startUpdate(env);

@@ -6,6 +6,7 @@ export enum Uniform_Types {
     VEC3,
     VEC4,
     MAT3,
+    SIV,
 }
 
 export function createShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -102,6 +103,9 @@ export class Uniform {
                 break;
             case Uniform_Types.MAT3:
                 this._gl.uniformMatrix3fv(this._loc, args[0], args[1]);
+                break;
+            case Uniform_Types.SIV:
+                this._gl.uniform1iv(this._loc, args[0], 0, args[0].length);
                 break;
         }
     }

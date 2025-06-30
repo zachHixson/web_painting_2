@@ -1,17 +1,17 @@
-import type Environment from "../Environment";
-import { TOOLS } from "./Tools_Enum";
-import Tool_Base from "./Tool_Base";
-import { ConstVector } from "../lib/Vector";
-import { Compute_Texture_Swap } from "../lib/ComputeTexture";
-import RenderPass from "../lib/RenderPass";
+import type Environment from '../Environment';
+import { TOOLS } from './Tools_Enum';
+import Tool_Base from './Tool_Base';
+import { ConstVector } from '../lib/Vector';
+import { Compute_Texture_Swap } from '../lib/ComputeTexture';
+import RenderPass from '../lib/RenderPass';
 import * as WGL from '../lib/wgl';
 import dirtVSource from '../shaders/dirtVertex.glsl?raw';
 import dirtFSource from '../shaders/dirtFragment.glsl?raw';
 import computeVertex from '../shaders/computeVertex.glsl?raw';
-import dirtUpdate from '../shaders/dirtUpdate.glsl?raw';
+import dirtUSource from '../shaders/dirtUpdate.glsl?raw';
 import grassVSource from '../shaders/grassVertex.glsl?raw';
 import grassFSource from '../shaders/grassFragment.glsl?raw';
-import { Mat3 } from "../lib/Mat3";
+import { Mat3 } from '../lib/Mat3';
 import * as Bezier from '../lib/Bezier';
 
 export default class Dirt extends Tool_Base {
@@ -76,7 +76,7 @@ export default class Dirt extends Tool_Base {
     private _getDirtUpdatePass(): RenderPass {
         const gl = this._env.ctx;
         const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
-        const program = Tool_Base.compileShader(gl, computeVertex, dirtUpdate);
+        const program = Tool_Base.compileShader(gl, computeVertex, dirtUSource);
 
         gl.bindVertexArray(vao);
         gl.useProgram(program);
