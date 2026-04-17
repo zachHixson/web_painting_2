@@ -5,7 +5,6 @@ import { ConstVector, Vector } from './lib/Vector';
 import Renderer from './Renderer';
 import * as WGL from './lib/wgl';
 import RenderPass from './lib/RenderPass';
-import { Compute_Texture_Swap } from './lib/ComputeTexture';
 import worldVSource from './shaders/worldVertex.glsl?raw';
 import worldFSource from './shaders/worldFragment.glsl?raw';
 import { TOOLS } from './Tools/Tools_Enum';
@@ -37,9 +36,6 @@ export default class Environment {
     readonly onResize = new EventEmitter<(dimensions: ConstVector)=>void>();
     readonly onToolSet = new EventEmitter<(newTool: TOOLS)=>void>();
 
-    //Global compute textures
-    readonly windBuffer: Compute_Texture_Swap;
-
     constructor(ctx: WebGL2RenderingContext){
         this.ctx = ctx;
         this.camera = new Camera(this.onResize);
@@ -53,8 +49,6 @@ export default class Environment {
         this._curTool = this.tools[0];
 
         this.mouse = new Mouse(this, this.onResize);
-
-        this.windBuffer = new Compute_Texture_Swap(this.ctx, 1024, this.ctx.RGBA32I, this.ctx.RGBA_INTEGER, this.ctx.INT, new Int32Array(1024 * 1024 * 4));
 
         window.addEventListener('resize', this.resize.bind(this));
         this.resize();
@@ -123,13 +117,6 @@ export default class Environment {
         this.mouse.onMouseMove.addListener(this._curTool.mouseMoveHandler);
 
         this.onToolSet.emit(this._curTool.id);
-    }
-
-    /**
-     * Adds a new wind gust to the global wind buffer
-     */
-    addWindGust(path: ConstVector[], directions: ConstVector[]): void {
-        //
     }
 
     /**

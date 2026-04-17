@@ -79,7 +79,7 @@ export default class Mouse {
             const xposeMat = env.camera.getInvMatrix().clone().transpose();
 
             for (let i = 0; i < this._splinePoints.length; i++){
-                this._splinePoints[i]
+                this._splinePoints[i] = this._splinePoints[i].clone()
                     .divide(env.camera.getDimensions())
                     .scale(2)
                     .subtractScalar(1)

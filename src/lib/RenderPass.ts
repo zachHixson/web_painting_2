@@ -50,12 +50,12 @@ export default class RenderPass implements iRenderPass {
         }
     }
 
-    renderInstanced(count: number){
+    renderInstanced(count: number, instVertCount: number = 6){
         const gl = this.gl;
         gl.drawArraysInstanced(
             gl.TRIANGLES,
             0,
-            6,
+            instVertCount,
             count
         );
     }

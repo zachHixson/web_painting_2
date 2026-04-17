@@ -1,8 +1,8 @@
 import { TOOLS } from './Tools_Enum';
-import { Mat3 } from "../lib/Mat3";
+import { Mat3 } from '../lib/Mat3';
 import { ConstVector } from '../lib/Vector';
 import * as WGL from '../lib/wgl';
-import Environment from "../Environment";
+import Environment from '../Environment';
 
 export default abstract class Tool_Base {
     static compileShader(gl: WebGL2RenderingContext, vertSource: string, fragSource: string): WebGLProgram {

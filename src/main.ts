@@ -76,7 +76,7 @@ function createTexDebugWindow(gl: WebGL2RenderingContext): void {
     let debugTex: WebGLTexture | null = null;
     let imgData = new ImageData(1, 1);
 
-    canvas.style = `
+    canvas.style.cssText = `
         border: 1px solid black;
         position: absolute;
         right: 0px;

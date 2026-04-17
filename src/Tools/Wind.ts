@@ -1,7 +1,7 @@
 import type Environment from "../Environment";
 import { TOOLS } from "./Tools_Enum";
 import Tool_Base from "./Tool_Base";
-import { ConstVector } from "../lib/Vector";
+import { Vector, ConstVector } from "../lib/Vector";
 import { Compute_Texture_Swap } from "../lib/ComputeTexture";
 import RenderPass from "../lib/RenderPass";
 import * as WGL from '../lib/wgl';
@@ -12,60 +12,40 @@ import windFSource from '../shaders/windFragment.glsl?raw';
 import windUSource from '../shaders/windUpdate.glsl?raw';
 import computeVSource from '../shaders/computeVertex.glsl?raw';
 
-enum WISP_POS {
-    TOP = 0,
-    CENTER,
-    BOTTOM,
-};
+const MAX_32I = Math.pow(2, 32) / 2;
 
-const WISP_LENGTH = 8;
-const WISP_GEO = (()=>{
-    /*
-        buffer contains list of pathOffset and trianglePosition pairs
-    */
-    const segments = WISP_LENGTH - 3;
-    const buffLength = segments * 6 + 6;
-    const buff = new Array<number>(buffLength * 2).fill(0);
+/*
+    Overall idea:
+        - Wind strokes generate little wisps
+        - Wisps consist of 8 verticies in a line, animated by GPU compute
+        - Wisps are rendered using instanced rendering, 1 wisp = 1 instance
+        - DataTex vec4 for wisps holds [x, y, normal.x, normal.y]
+        - Front vec4 representing front of wisp holds [x, y, rotation, remainingLife]
+*/
 
-    buff[0] = 0;
-    buff[1] = WISP_POS.CENTER;
-    buff[2] = 1;
-    buff[3] = WISP_POS.TOP;
-    buff[4] = 1;
-    buff[5] = WISP_POS.BOTTOM;
+class Stroke {
+    private _pts: Array<ConstVector>;
 
-    for (let i = 0; i < segments; i++) {
-        let idx = i * 12 + 6;
-
-        buff[idx++] = i + 1;
-        buff[idx++] = WISP_POS.BOTTOM;
-        buff[idx++] = i + 1;
-        buff[idx++] = WISP_POS.TOP;
-        buff[idx++] = i + 2;
-        buff[idx++] = WISP_POS.TOP;
-
-        buff[idx++] = i + 2;
-        buff[idx++] = WISP_POS.TOP;
-        buff[idx++] = i + 2;
-        buff[idx++] = WISP_POS.BOTTOM;
-        buff[idx++] = i + 1;
-        buff[idx++] = WISP_POS.BOTTOM;
+    constructor(pts: Array<ConstVector>) {
+        this._pts = pts;
     }
 
-    buff[buff.length - 6] = WISP_LENGTH - 1;
-    buff[buff.length - 5] = WISP_POS.CENTER;
-    buff[buff.length - 4] = WISP_LENGTH - 2;
-    buff[buff.length - 3] = WISP_POS.BOTTOM;
-    buff[buff.length - 2] = WISP_LENGTH - 2;
-    buff[buff.length - 1] = WISP_POS.TOP;
+    get length() {
+        return this._pts.length;
+    }
 
-    return buff;
-})();
+    getPt(idx: number) {
+        return this._pts[idx];
+    }
+}
 
 export default class Wind extends Tool_Base {
+    static readonly WISP_LENGTH = 8;
     static readonly TEX_SIZE = 1024;
     static readonly TEX_SIZE_SQR = Wind.TEX_SIZE * Wind.TEX_SIZE;
 
+    private _strokes = new Array<Stroke>();
+    private _wispIdx = 0;
     private _windData: Compute_Texture_Swap;
     private _destBuffer: Int32Array;
     private _windRenderPass: RenderPass;
@@ -74,6 +54,17 @@ export default class Wind extends Tool_Base {
 
     constructor(id: TOOLS, icon: string, env: Environment) {
         const emptyTex = new Int32Array(Wind.TEX_SIZE_SQR * 4);
+
+        // debug: create generic data for testing wind drawing shaders
+        for (let i = 0; i < emptyTex.length; i += 4) {
+            const ptID = Math.floor(i / 4);
+            const instOffset = Math.floor(i / (8 * 4));
+            emptyTex[i + 0] = (ptID % 8) * 50;
+            emptyTex[i + 1] = instOffset * 50;
+            emptyTex[i + 2] = 1;
+            emptyTex[i + 3] = 0;
+        }
+        // end debug
 
         super(id, icon, env);
 
@@ -98,14 +89,13 @@ export default class Wind extends Tool_Base {
             uniforms: {
                 viewMat: new WGL.Uniform(gl, program, 'u_viewMat', WGL.Uniform_Types.MAT3),
                 dataTexWidth: new WGL.Uniform(gl, program, 'u_dataTexWidth', WGL.Uniform_Types.INT),
-                wispGeo: new WGL.Uniform(gl, program, 'u_wispGeo', WGL.Uniform_Types.SIV),
             },
             textures: {
                 dataTex: new WGL.Texture_Uniform(gl, program, 'u_dataTex', this._windData.read.texture),
             },
         });
 
-        renderPass.uniforms!.wispGeo.set(WISP_GEO);
+        renderPass.uniforms!.dataTexWidth.set(this._windData.read.width);
 
         return renderPass;
     }
@@ -115,46 +105,129 @@ export default class Wind extends Tool_Base {
         const vao = WGL.nullError(gl.createVertexArray(), new Error('Could not create vertex array object.'));
         const program = Tool_Base.compileShader(gl, computeVSource, windUSource);
 
-        const renderPass = new RenderPass({
+        gl.bindVertexArray(vao);
+        gl.useProgram(program);
+
+        const updatePass = new RenderPass({
             gl,
             vao,
             program,
+            uniforms: {
+                dataTexWidth: new WGL.Uniform(gl, program, 'u_dataTexWidth', WGL.Uniform_Types.INT),
+                delta: new WGL.Uniform(gl, program, 'u_delta', WGL.Uniform_Types.FLOAT),
+            },
+            textures: {
+                dataTex: new WGL.Texture_Uniform(gl, program, 'u_dataTex', this._windData.read.texture),
+            },
+            attributes: {
+                planeGeo: (()=>{
+                    const planeGeo = WGL.createPlaneGeo();
+                    const attr = new WGL.Attribute(gl, program, 'a_planeGeo');
+                    attr.set(new Float32Array(planeGeo), 2, gl.FLOAT);
+                    return attr;
+                })(),
+            },
         });
 
-        return renderPass;
+        updatePass.uniforms!.dataTexWidth.set(this._windData.read.width);
+
+        return updatePass;
+    }
+
+    private _spawnWisp(pos: ConstVector, normal: ConstVector) {
+        const tex = this._windData.read;
+        const gl = this._env.ctx;
+        const ptData = new Int32Array(4 * 8);
+        const xIdx = this._wispIdx % Wind.TEX_SIZE;
+        const yIdx = Math.floor(this._wispIdx / Wind.TEX_SIZE);
+
+        for (let i = 0; i < 8; i++) {
+            const idxOffset = i * 4;
+            const posOffset = i * 50;
+
+            ptData[0 + idxOffset] = pos.x + normal.x * posOffset;
+            ptData[1 + idxOffset] = pos.y + normal.y * posOffset;
+            ptData[2 + idxOffset] = normal.x * MAX_32I;
+            ptData[3 + idxOffset] = normal.y * MAX_32I;
+        }
+
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            xIdx, yIdx,
+            8, 1,
+            gl.RGBA_INTEGER,
+            gl.INT,
+            ptData
+        );
+
+        this._wispIdx = (this._wispIdx + 8) % Wind.TEX_SIZE_SQR;
+        console.log(this._wispIdx, '/', Wind.TEX_SIZE_SQR);
+    }
+
+    private _spawnNewWisps() {
+        const SPAWN_CHANCE = 0.008;
+
+        for (let i = 0; i < this._strokes.length; i++) {
+            const stroke = this._strokes[i];
+
+            for (let j = 0; j < stroke.length - 1; j++) {
+                const p1 = stroke.getPt(j);
+                const p2 = stroke.getPt(j + 1);
+                const norm = p2.clone().subtract(p1).normalize();
+
+                if (Math.random() < SPAWN_CHANCE) {
+                    this._spawnWisp(p1, norm);
+                }
+            }
+        }
+    }
+
+    private _runUpdatePass(delta: number) {
+        const gl = this._env.ctx;
+        const fb = this._windData.write.framebuffer;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            this._windData.write.texture,
+            0
+        );
+
+        gl.viewport(0, 0, Wind.TEX_SIZE, Wind.TEX_SIZE);
+
+        this._windUpdatePass.textures!.dataTex.texture = this._windData.read.texture;
+
+        this._windUpdatePass.enable();
+        this._windUpdatePass.uniforms!.delta.set(delta);
+        this._windUpdatePass.renderInstanced(1);
+        this._windUpdatePass.disable();
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        this._windData.swap();
+        this._time += delta;
     }
 
     mouseCommitHandler = (points: ConstVector[]) => {
         const positions = Bezier.interpolateSpline(points, 0.5 * this._env.camera.getScale());
-        const dirs = new Array<ConstVector>(positions.length);
 
-        for (let i = 0; i < dirs.length - 1; i++) {
-            dirs[i] = positions[i + 1].clone().subtract(positions[i]).normalize();
-        }
-
-        dirs[dirs.length - 1] = dirs[dirs.length - 2];
-
-        this._env.addWindGust(positions, dirs);
-
-        /*
-            - Use positions to draw wind velocities to world-space wind velocity buffer
-            - GPU compute is run using secondary particle position buffer
-                - Buffer uses multiple pixels for each particle
-                - If the current "slot" is empty, then the compute shader checks a random position on the wind velocity buffer
-                    - If the wind velocity at that location is greater than 0, create a wind particle
-                - If the slot is not empty, update the particle using a set of rules in order to create a "wisp" style effect
-                    - Each particle has a limited lifetime, when that lifetime is reached, all pixels related to that slot are reset to 0
-        */
+        this._strokes.push(new Stroke(positions));
     }
 
     update(delta: number): void {
-        //
+        this._spawnNewWisps();
+        this._runUpdatePass(delta);
     }
 
     render(viewMat: Mat3): void {
         this._windRenderPass.enable();
         this._windRenderPass.uniforms!.viewMat.set(false, viewMat.data);
-        this._windRenderPass.renderInstanced(Wind.TEX_SIZE_SQR);
+        this._windRenderPass.renderInstanced(Wind.TEX_SIZE_SQR / Wind.WISP_LENGTH, 36); //uncomment
         this._windRenderPass.disable();
     }
 }
