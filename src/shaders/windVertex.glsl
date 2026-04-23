@@ -10,7 +10,7 @@ uniform highp isampler2D u_dataTex;
 
 out float v_randSeed;
 
-const float MAX_32I = pow(2.0, 32.0) / 2.0;
+const float MAX_32I = pow(2.0, 24.0) / 2.0;
 
 float random2D(vec2 seed){
     return fract(sin(dot(seed, vec2(13.6016, 45.1407))) * 52469.9382);

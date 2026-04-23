@@ -12,7 +12,7 @@ import windFSource from '../shaders/windFragment.glsl?raw';
 import windUSource from '../shaders/windUpdate.glsl?raw';
 import computeVSource from '../shaders/computeVertex.glsl?raw';
 
-const MAX_32I = Math.pow(2, 32) / 2;
+const MAX_32I = Math.pow(2, 24) / 2;
 
 /*
     Overall idea:
@@ -54,17 +54,6 @@ export default class Wind extends Tool_Base {
 
     constructor(id: TOOLS, icon: string, env: Environment) {
         const emptyTex = new Int32Array(Wind.TEX_SIZE_SQR * 4);
-
-        // debug: create generic data for testing wind drawing shaders
-        for (let i = 0; i < emptyTex.length; i += 4) {
-            const ptID = Math.floor(i / 4);
-            const instOffset = Math.floor(i / (8 * 4));
-            emptyTex[i + 0] = (ptID % 8) * 50;
-            emptyTex[i + 1] = instOffset * 50;
-            emptyTex[i + 2] = 1;
-            emptyTex[i + 3] = 0;
-        }
-        // end debug
 
         super(id, icon, env);
 
@@ -163,7 +152,6 @@ export default class Wind extends Tool_Base {
         );
 
         this._wispIdx = (this._wispIdx + 8) % Wind.TEX_SIZE_SQR;
-        console.log(this._wispIdx, '/', Wind.TEX_SIZE_SQR);
     }
 
     private _spawnNewWisps() {
