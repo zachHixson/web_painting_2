@@ -1,18 +1,17 @@
 import type Environment from "../Environment";
 import { TOOLS } from "./Tools_Enum";
 import Tool_Base from "./Tool_Base";
-import { Vector, ConstVector } from "../lib/Vector";
+import { ConstVector } from "../lib/Vector";
 import { Compute_Texture_Swap } from "../lib/ComputeTexture";
 import RenderPass from "../lib/RenderPass";
 import * as WGL from '../lib/wgl';
 import { Mat3 } from "../lib/Mat3";
 import * as Bezier from '../lib/Bezier';
+import { recastF32I32 } from "../lib/Util";
 import windVSource from '../shaders/windVertex.glsl?raw';
 import windFSource from '../shaders/windFragment.glsl?raw';
 import windUSource from '../shaders/windUpdate.glsl?raw';
 import computeVSource from '../shaders/computeVertex.glsl?raw';
-
-const MAX_32I = Math.pow(2, 24) / 2;
 
 /*
     Overall idea:
@@ -47,7 +46,6 @@ export default class Wind extends Tool_Base {
     private _strokes = new Array<Stroke>();
     private _wispIdx = 0;
     private _windData: Compute_Texture_Swap;
-    private _destBuffer: Int32Array;
     private _windRenderPass: RenderPass;
     private _windUpdatePass: RenderPass;
     private _time: number = 0;
@@ -136,8 +134,8 @@ export default class Wind extends Tool_Base {
 
             ptData[0 + idxOffset] = pos.x + normal.x * posOffset;
             ptData[1 + idxOffset] = pos.y + normal.y * posOffset;
-            ptData[2 + idxOffset] = normal.x * MAX_32I;
-            ptData[3 + idxOffset] = normal.y * MAX_32I;
+            ptData[2 + idxOffset] = recastF32I32(normal.x);
+            ptData[3 + idxOffset] = recastF32I32(normal.y);
         }
 
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);

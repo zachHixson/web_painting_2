@@ -15,3 +15,10 @@ export function rectIntersect(r1: Rect, r2: Rect): boolean {
 
     return true;
 }
+
+export function recastF32I32(num: number): number {
+    const fltArr = new Float32Array(1);
+    fltArr[0] = num;
+    const intArr = new Int32Array(fltArr.buffer);
+    return intArr[0];
+}

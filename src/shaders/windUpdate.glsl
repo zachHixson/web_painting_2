@@ -10,8 +10,6 @@ out ivec4 outColor;
 
 #define PI 3.141592653589793
 
-const float MAX_32I = pow(2.0, 24.0) / 2.0; //NOTE: Should probably replace this with reinterpret_cast (or similar) in relevant files
-
 float rand(vec2 seed){
     return fract(sin(dot(seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -54,7 +52,10 @@ void main(){
     //get new direction
     if (isLeader) {
         float rotDir = 2.0 * noise(vec2(ptRead.xy) * 0.01) - 1.0;
-        dir = vec2(nxRead.zw) / MAX_32I;
+        dir = vec2(
+            intBitsToFloat(nxRead.z),
+            intBitsToFloat(nxRead.w)
+        );
         dir = rotateVec2(dir, 0.5 * rotDir);
     }
     else {
@@ -63,7 +64,10 @@ void main(){
 
     //set write data
     write.xy = ptRead.xy + ivec2(dir * 10.0);
-    write.zw = ivec2(dir * MAX_32I);
+    write.zw = ivec2(
+        floatBitsToInt(dir.x),
+        floatBitsToInt(dir.y)
+    );
 
     //remove wisps that are too short
     if (length(vec2(diff)) < 10.0 && isLeader) {
