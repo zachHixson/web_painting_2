@@ -8,8 +8,6 @@ uniform float u_delta;
 
 out ivec4 outColor;
 
-#define PI 3.141592653589793
-
 float rand(vec2 seed){
     return fract(sin(dot(seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -45,9 +43,16 @@ void main(){
     float nxOffset = 1.0 - float(isLeader) * 2.0;
     ivec4 ptRead = texelFetch(u_dataTex, ivec2(gl_FragCoord.xy), 0);
     ivec4 nxRead = texelFetch(u_dataTex, ivec2(gl_FragCoord.x + nxOffset, gl_FragCoord.y), 0);
+    ivec4 tailRead = texelFetch(u_dataTex, ivec2(floor(gl_FragCoord.x / 8.0) * 8.0, gl_FragCoord.y), 0);
     ivec4 write = ivec4(0, 0, 0, 0);
     ivec2 diff = nxRead.xy - ptRead.xy;
     vec2 dir;
+
+    //don't do anything if data is set to 0
+    if (ptRead == ivec4(0)) {
+        outColor = ptRead;
+        return;
+    }
 
     //get new direction
     if (isLeader) {
@@ -75,10 +80,14 @@ void main(){
     }
 
     //write output
-    if (ptRead == ivec4(0)) {
-        outColor = ivec4(0);
+    outColor = write;
+
+    if (ptRead == tailRead) {
+        outColor.z = max(tailRead.z - 1, 0);
     }
-    else {
-        outColor = write;
+
+    //remove wisp if lifetime has expired
+    if (tailRead.z <= 0) {
+        outColor = ivec4(0);
     }
 }

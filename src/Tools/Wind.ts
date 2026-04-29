@@ -19,7 +19,7 @@ import computeVSource from '../shaders/computeVertex.glsl?raw';
         - Wisps consist of 8 verticies in a line, animated by GPU compute
         - Wisps are rendered using instanced rendering, 1 wisp = 1 instance
         - DataTex vec4 for wisps holds [x, y, normal.x, normal.y]
-        - Front vec4 representing front of wisp holds [x, y, rotation, remainingLife]
+        - First vec4 representing tail of wisp holds [x, y, remainingLife, undefined]
 */
 
 class Stroke {
@@ -56,7 +56,6 @@ export default class Wind extends Tool_Base {
         super(id, icon, env);
 
         this._windData = new Compute_Texture_Swap(env.ctx, Wind.TEX_SIZE, env.ctx.RGBA32I, env.ctx.RGBA_INTEGER, env.ctx.INT, emptyTex);
-        this._destBuffer = new Int32Array(Wind.TEX_SIZE * Wind.TEX_SIZE * 4);
         this._windRenderPass = this._getWindRenderPass();
         this._windUpdatePass = this._getWindUpdatePass();
     }
@@ -122,7 +121,7 @@ export default class Wind extends Tool_Base {
     }
 
     private _spawnWisp(pos: ConstVector, normal: ConstVector) {
-        const tex = this._windData.read;
+        const LIFETIME = 100;
         const gl = this._env.ctx;
         const ptData = new Int32Array(4 * 8);
         const xIdx = this._wispIdx % Wind.TEX_SIZE;
@@ -138,7 +137,11 @@ export default class Wind extends Tool_Base {
             ptData[3 + idxOffset] = recastF32I32(normal.y);
         }
 
-        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        //set lifespan for tail
+        ptData[2] = LIFETIME;
+
+        //write data to datatexture
+        gl.bindTexture(gl.TEXTURE_2D, this._windData.read.texture);
         gl.texSubImage2D(
             gl.TEXTURE_2D,
             0,
@@ -211,6 +214,8 @@ export default class Wind extends Tool_Base {
     }
 
     render(viewMat: Mat3): void {
+        this._windRenderPass.textures!.dataTex.texture = this._windData.read.texture;
+
         this._windRenderPass.enable();
         this._windRenderPass.uniforms!.viewMat.set(false, viewMat.data);
         this._windRenderPass.renderInstanced(Wind.TEX_SIZE_SQR / Wind.WISP_LENGTH, 36); //uncomment
